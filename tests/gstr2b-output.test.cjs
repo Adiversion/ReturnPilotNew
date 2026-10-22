@@ -4,12 +4,14 @@ const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const fs = require('node:fs');
 const path = require('node:path');
+const { pdfHeader } = require('./fixtures/pdf-identity.cjs');
 const source = fs.readFileSync(path.join(__dirname, '../content/2b-inject.js'), 'utf8');
 const drain = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
 
-function harness({ format = 'PDF', click = () => {}, disabled = false, empty = false } = {}) {
+function harness({ format = 'PDF', click = () => {}, disabled = false, empty = false, doc = pdfHeader() } = {}) {
   let id = 0;
   let nativeClicks = 0;
+  let compiled = 0;
   const timers = new Map();
   const intervals = new Map();
   const listeners = [];
@@ -26,13 +28,16 @@ function harness({ format = 'PDF', click = () => {}, disabled = false, empty = f
     textContent: format === 'PDF' ? 'DOWNLOAD GSTR-2B SUMMARY (PDF)' : 'DOWNLOAD GSTR-2B DETAILS (EXCEL)',
     ariaDisabled: disabled,
     getAttribute: key => key === 'aria-disabled' ? String(button.ariaDisabled) : null,
-    focus() {}, dispatchEvent() {}, click: () => click(api)
+    focus() {}, dispatchEvent() {}, click: () => {
+      if (format === 'PDF' && doc !== false) window.pdfMake.createPdf(doc);
+      click(api);
+    }
   };
   const elements = empty ? [] : [button];
   const window = {
     parent, name: `__gst2b_042026__meta=${encodeURIComponent(JSON.stringify(meta))}`,
     URL: { createObjectURL: () => `blob:${++id}` },
-    pdfMake: { createPdf: () => ({ download() {} }) },
+    pdfMake: { createPdf: () => { compiled++; return { download() {} }; } },
     saveAs() {},
     getComputedStyle: () => ({ display: 'block', visibility: 'visible' }),
     addEventListener: (_type, handler) => listeners.push(handler),
@@ -56,11 +61,13 @@ function harness({ format = 'PDF', click = () => {}, disabled = false, empty = f
     setInterval: callback => { const key = ++id; intervals.set(key, callback); return key; },
     clearInterval: key => intervals.delete(key)
   });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../content/return-identity.js'), 'utf8'), context);
   vm.runInContext(source, context);
   const api = {
     window, button, elements, timers, intervals, observers,
     results: () => messages.filter(message => message.__gst2b === 'INJECT_RESULT'),
     nativeClicks: () => nativeClicks,
+    compiled: () => compiled,
     start: () => listeners.forEach(handler => handler({ source: parent, origin: meta.parentOrigin, data: {
       __gst2b: 'INJECT_START', requestId: 'job', period: meta.period, captureType: format, meta
     } })),
@@ -88,7 +95,7 @@ async function expectFailure(h, pattern = /not observed/) {
 }
 
 test('pdfMake.download invocation alone never reports success', async () => {
-  const h = harness({ click: h => h.window.pdfMake.createPdf({}).download('return.pdf') });
+  const h = harness({ click: h => h.window.pdfMake.createPdf(pdfHeader()).download('return.pdf') });
   h.start(); await drain();
   assert.equal(h.results().length, 0);
   await expectFailure(h);
@@ -170,4 +177,28 @@ test('button timeout cleans observers and polling immediately', async () => {
   const h = harness({ empty: true }); h.start(); await drain();
   await expectFailure(h, /not found/);
   assert.equal(h.observers.size, 0);
+});
+
+
+for (const [label, doc] of [
+  ['stale July data', pdfHeader({ month: 'July' })],
+  ['another taxpayer', pdfHeader({ gstin: '27BBBBB0000B1Z5' })],
+  ['missing financial year', pdfHeader({ fy: null })]
+]) {
+  test(`blocks ${label} before PDF compilation or native download`, async () => {
+    const h = harness({ doc, click: h => h.anchor().click() });
+    h.start(); await drain();
+    assert.equal(h.compiled(), 0);
+    assert.equal(h.nativeClicks(), 0);
+    assert.equal(h.results().length, 1);
+    assert.equal(h.results()[0].success, false);
+    assert.equal(h.timers.size, 0);
+  });
+}
+
+test('PDF fallback without any verified docDefinition cannot bypass the guard', async () => {
+  const h = harness({ doc: false, click: h => h.anchor().click() });
+  h.start(); await drain();
+  assert.equal(h.nativeClicks(), 0);
+  assert.equal(h.results()[0].success, false);
 });

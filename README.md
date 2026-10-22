@@ -28,8 +28,15 @@ are used as test fixtures.
   object URL creation no longer count as dispatch. Timeouts reject rather than
   falling through to success. PDF selection skips Excel buttons and honors ARIA
   busy/disabled state. Removed obsolete capture helpers and filename traps.
-- Verified: 11 coordinator tests, 10 GSTR-2B frame/inject tests, 12 output tests, 16 existing
-  architecture/integrity checks, and 12 repository static compliance checks.
+- Phase 2c implemented: shared labelled-header identity guard before PDF
+  compilation for GSTR-2B and GSTR-3B. Checks return title, taxpayer, month and
+  financial year against the job, before 2B metadata correction. Unknown or
+  mismatched headers fail closed; 3B fallback capture cannot bypass the check.
+  This does NOT validate every amount, Excel contents or eliminate shared-state races.
+- Verified: 56 focused tests (11 coordinator, 10 frame, 16 output, 12 identity/loader,
+  7 production 3B identity integration), 16 architecture checks and 12 static
+  compliance checks. Offline matching/cross-month checks also passed against all
+  four supplied PDF header layouts without copying sensitive data into fixtures.
   Live GST downloads and the full build/browser pipeline have not been verified.
 - Next: implement GSTR-2B data readiness, safe download handoff and context cleanup
   before connecting the coordinator. Frame teardown now follows observed native
@@ -37,6 +44,7 @@ are used as test fixtures.
   Non-anchor native output paths currently fail closed and require live testing.
   Address worker restarts, account switches and caller timeouts per the handoff.
 - Commands: `npm run test:coordinator`, `npm run test:gstr2b-frame`, `npm run test:gstr2b-output`,
+  `npm run test:pdf-identity`,
   `node tests/run-e2e.js`, `node scripts/verify-webstore-compliance.js`.
 - Workflow requested by owner: after each successful tested milestone, update
   handoff documentation, commit, and push to `arena/e6eb8dc6-returnpilotnew`.

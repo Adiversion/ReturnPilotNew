@@ -189,3 +189,17 @@ request. Sign out of the recorded GST session, sanitize all exported copies, and
 consider repository visibility/history exposure. A normal deletion commit alone
 does not erase previously committed sensitive data. History cleanup requires a
 separate owner-approved procedure; no history rewrite was performed in this review.
+
+
+## Implemented follow-up: labelled PDF identity guard
+
+A later Phase 2c adds `content/return-identity.js` to both PDF paths. The recordings
+show 2B header rows `Financial Year`, `Month`, `1.GSTIN`, and 3B rows `Year`,
+`Period`, `GSTIN of the supplier`, under the relevant FORM GSTR title. Those
+original headers can be checked without inventing a missing API response schema.
+
+The guard was checked offline against both supplied months for each return and
+rejects substituting either month's document for the other. Committed regression
+tests use synthetic data. This is a useful fail-closed boundary, not proof that
+all document line items belong to that identity. Source-cache readiness and shared
+session isolation remain unresolved; see the refactor handoff for current limits.

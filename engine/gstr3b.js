@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 //  ReturnPilot v4.3 — GSTR-3B Active-Tab Angular Scope PDF Engine
 //  Sequential Tab Queue, Direct In-Memory Stream Capture,
-//  Strict Period Verification & Complete Conflict Elimination
+//  Labelled PDF Identity Verification (shared-state risks remain)
 //  © 2026 KasyHQ. All Rights Reserved.
 // ═══════════════════════════════════════════════════════════════
 
@@ -21,11 +21,10 @@ function enqueueGstr3bTab(tabId, fn) {
   const prev = gstr3bTabQueues.get(tabId) || Promise.resolve();
   const next = prev.then(fn, fn);
   gstr3bTabQueues.set(tabId, next);
-  next.finally(() => {
-    if (gstr3bTabQueues.get(tabId) === next) {
-      gstr3bTabQueues.delete(tabId);
-    }
-  });
+  const release = () => {
+    if (gstr3bTabQueues.get(tabId) === next) gstr3bTabQueues.delete(tabId);
+  };
+  next.then(release, release);
   return next;
 }
 
@@ -53,6 +52,9 @@ export function handleGstr3bScopePdf(msg, sender, sendResponse, deps) {
       const expectedPath = buildFolderDownloadPath(effectiveGstinPre, 'GSTR3B', period, canonicalBase, fyPre);
 
       const executePdfCapture = async () => {
+        await chrome.scripting.executeScript({
+          target: { tabId: targetTabId }, world: 'MAIN', files: ['content/return-identity.js']
+        });
         const results = await chrome.scripting.executeScript({
           target: { tabId: targetTabId },
           world: 'MAIN',
@@ -60,6 +62,9 @@ export function handleGstr3bScopePdf(msg, sender, sendResponse, deps) {
           func: (periodArg, gstinArg, fyArg) => {
             return new Promise((resolve) => {
               let settled = false;
+              let timeoutId = null;
+              let pdfIdentityVerified = false;
+              let resolvedGstin = gstinArg.trim().toUpperCase();
               const cleanupFns = [];
 
               // Storage snapshot & restore to prevent stale state pollution
@@ -105,6 +110,10 @@ export function handleGstr3bScopePdf(msg, sender, sendResponse, deps) {
                     error: errMsg || 'GSTR-3B PDF capture failed (no data returned from portal compiler)',
                     period: periodArg
                   });
+                }
+
+                if (!pdfIdentityVerified) {
+                  return resolve({ ok: false, error: 'PDF download blocked: document identity was not verified', period: periodArg });
                 }
 
                 // Strict Period Verification
@@ -156,10 +165,15 @@ export function handleGstr3bScopePdf(msg, sender, sendResponse, deps) {
                     const docDef = args[0] || {};
                     let detectedPeriod = null;
                     try {
-                      const ddStr = JSON.stringify(docDef);
-                      const m = ddStr.match(/\b(0[1-9]|1[0-2])(20\d{2})\b/);
-                      if (m) detectedPeriod = m[0];
-                    } catch (_) {}
+                      if (!globalThis.ReturnPilotIdentity) throw new Error('PDF identity guard is unavailable');
+                      const identity = globalThis.ReturnPilotIdentity.validatePdf(docDef, { gstin: gstinArg, period: periodArg, returnType: 'GSTR3B' });
+                      detectedPeriod = identity.period;
+                      pdfIdentityVerified = true;
+                    } catch (error) {
+                      pdfIdentityVerified = false;
+                      finish(false, error.message);
+                      return { download() {}, open() {}, print() {} };
+                    }
 
                     const pdfObj = origCreate.apply(this, args);
                     if (pdfObj) {
@@ -300,7 +314,7 @@ export function handleGstr3bScopePdf(msg, sender, sendResponse, deps) {
                 return finish(false, 'downloadGSTR3Bpdf() not found in any AngularJS scope. Please open the returns dashboard.');
               }
 
-              const resolvedGstin = gstinArg || window._rpGstr3bGstin || localStorage.getItem('gstin') || '';
+              resolvedGstin = gstinArg.trim().toUpperCase();
               window._rpGstr3bGstin = resolvedGstin;
 
               // Write target period and FY to dual storage
@@ -391,7 +405,7 @@ export function handleGstr3bScopePdf(msg, sender, sendResponse, deps) {
               console.log(`[ReturnPilot GSTR3B] Invoking official portal scope.downloadGSTR3Bpdf() for period: ${periodArg} (GSTIN: ${resolvedGstin}, FY: ${fyArg})`);
 
               // Safety timeout: 35 seconds to await official portal generation and API resolution
-              const timeoutId = setTimeout(() => {
+              timeoutId = setTimeout(() => {
                 console.warn(`[ReturnPilot GSTR3B] Generation wait reached 35s timeout for period ${periodArg}`);
                 finish(false, `GSTR-3B PDF generation timed out after 35s on GST portal for period ${periodArg}`);
               }, 35000);

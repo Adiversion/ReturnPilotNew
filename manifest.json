@@ -90,6 +90,7 @@
    "resources": [
     "assets/icons/*",
     "content/2b-inject.js",
+    "content/return-identity.js",
     "content/gstr1-inject.js",
     "content/gstr1a-inject.js",
     "content/gstr9-inject.js",

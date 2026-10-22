@@ -67,11 +67,15 @@ try {
   console.warn('[2B Bridge] Pre-population failed:', e.message);
 }
 
-// Inject MAIN-world script
-const script = document.createElement('script');
-script.src = chrome.runtime.getURL('content/2b-inject.js');
-script.onload = () => script.remove();
-(document.head || document.documentElement).appendChild(script);
+// Load the packaged identity guard before the portal integration script.
+function injectPackagedScript(path, onLoad) {
+  const script = document.createElement('script');
+  script.src = chrome.runtime.getURL(path);
+  script.onload = () => { script.remove(); if (onLoad) onLoad(); };
+  script.onerror = () => { script.remove(); console.error('[2B Bridge] Packaged script failed to load:', path); };
+  (document.head || document.documentElement).appendChild(script);
+}
+injectPackagedScript('content/return-identity.js', () => injectPackagedScript('content/2b-inject.js'));
 
 // Relay messages to parent window
 window.addEventListener('message', (event) => {

@@ -18,6 +18,7 @@
   let frameJob = null;
   let captureStarted = false;
   let captureArmed = false;
+  let pdfIdentityVerified = false;
   let clearOutputReferences = () => {};
 
   // Initialize immediately from window.name metadata payload if present
@@ -180,18 +181,26 @@
   };
 
   // ── Observed native anchor dispatch (not browser download completion) ──
+  let dispatchFailure = null;
   let isDispatched = false;
   let dispatchedPayload = null;
   const dispatchResolvers = [];
 
   function resetDispatch() {
+    dispatchFailure = null;
     isDispatched = false;
     dispatchedPayload = null;
     dispatchResolvers.length = 0;
   }
 
+  function rejectOutput(error) {
+    if (dispatchFailure) return;
+    dispatchFailure = error;
+    dispatchResolvers.splice(0).forEach(listener => listener(null, error));
+  }
+
   function notifyDispatched(filename, type) {
-    if (!captureArmed || type !== activeCaptureType) return;
+    if (!captureArmed || dispatchFailure || type !== activeCaptureType) return;
     if (!isDispatched) {
       isDispatched = true;
       dispatchedPayload = { filename, type };
@@ -201,10 +210,11 @@
 
   function waitDispatched(ms = 15000) {
     return new Promise((resolve, reject) => {
+      if (dispatchFailure) return reject(dispatchFailure);
       if (isDispatched) return resolve(dispatchedPayload);
-      const onDispatch = (val) => {
+      const onDispatch = (val, error) => {
         clearTimeout(timer);
-        resolve(val);
+        if (error) reject(error); else resolve(val);
       };
       const timer = setTimeout(() => {
         const index = dispatchResolvers.indexOf(onDispatch);
@@ -221,6 +231,19 @@
     const orig = window.pdfMake.createPdf;
 
     window.pdfMake.createPdf = function (docDefinition) {
+      if (captureArmed && activeCaptureType === 'PDF') {
+        try {
+          if (!globalThis.ReturnPilotIdentity) throw new Error('PDF identity guard is unavailable');
+          // Check ORIGINAL headers before any FY correction can hide stale data.
+          globalThis.ReturnPilotIdentity.validatePdf(docDefinition, { gstin: activeGstin, period: activePeriod, returnType: 'GSTR2B' });
+          pdfIdentityVerified = true;
+        } catch (error) {
+          pdfIdentityVerified = false;
+          rejectOutput(error);
+          // Do not invoke the portal compiler for mismatched/unknown identity.
+          return { download() {}, open() {}, print() {} };
+        }
+      }
       const targetFY = disyearOf(activePeriod);
       if (docDefinition) {
         fixPdfDocDefinition(docDefinition, targetFY);
@@ -340,8 +363,18 @@
       blobUrlMap.clear();
     }
 
+    function allowAnchor(anchor) {
+      if (captureArmed && activeCaptureType === 'PDF' && blobUrlMap.has(anchor.href || '') &&
+          (!pdfIdentityVerified || dispatchFailure)) {
+        rejectOutput(new Error('PDF download blocked: document identity was not verified'));
+        return false;
+      }
+      return true;
+    }
+
     const origAnchorClick = HTMLAnchorElement.prototype.click;
     HTMLAnchorElement.prototype.click = function () {
+      if (!allowAnchor(this)) return;
       const result = origAnchorClick.apply(this, arguments);
       observeAnchor(this);
       return result;
@@ -349,6 +382,7 @@
     // FileSaver commonly dispatches a synthetic MouseEvent rather than .click().
     const origDispatchEvent = HTMLAnchorElement.prototype.dispatchEvent;
     HTMLAnchorElement.prototype.dispatchEvent = function (event) {
+      if (event?.type === 'click' && !allowAnchor(this)) return false;
       const result = origDispatchEvent.apply(this, arguments);
       if (event?.type === 'click' && result !== false && !event.defaultPrevented) observeAnchor(this);
       return result;
@@ -480,6 +514,7 @@
       // Patch scopes again right before click
       patchAngularScope(activeFinYear);
 
+      pdfIdentityVerified = false;
       captureArmed = true;
 
       // Robust Angular & DOM event dispatching

@@ -59,6 +59,47 @@ No dependencies or GST credentials are required for this suite.
 - Some engines have independent per-tab queues; these are not one shared lock.
 - Generated-file API downloads and local report builders are separate paths.
 
+## Phase 2c — PDF identity containment (implemented)
+
+`content/return-identity.js` validates the original pdfMake document definition's
+labelled header tables, based on the uploaded 2B and 3B layouts. Requires the
+correct return title, GSTIN, month and FY; derives MMYYYY across April/March FY
+boundaries. It does not scan arbitrary amounts/dates for six-digit numbers and
+never substitutes requested identity for missing evidence.
+
+- 2B bridge loads the packaged helper before the inject script. The PDF hook
+  validates before FY correction or compilation. Mismatch suppresses compilation,
+  rejects the operation, and prevents its tracked PDF anchor from bypassing the
+  guard. Excel behavior is unchanged by this identity guard.
+- 3B engine installs the same helper in MAIN world and validates before invoking
+  the native compiler. Fallback stream capture requires a previously validated
+  document; an unvalidated fallback fails closed. Initialized cleanup variables
+  also fix early-error temporal-dead-zone failures when no scope is available.
+- Resource registration changed to expose this packaged helper on existing
+  allowed portal origins. No new host permissions or remote code.
+- Tests use synthetic taxpayer IDs and minimal recorded header layouts; production
+  3B integration tests run its actual serialized function with controlled Chrome
+  and Angular mocks, including successive April/May requests with a stale April
+  document and an apparently correct May filename.
+- One-off offline checks on the four uploaded docDefinitions accepted matching
+  identities and rejected cross-month substitution. Raw data is NOT in fixtures.
+
+### Deliberate compatibility limits
+
+Unknown/historical header layouts, missing FY and direct PDF fallback paths without
+an observed docDefinition now fail instead of silently filling a requested year.
+This is intentional but needs live validation before release. An English labelled
+identity table within the first six top-level content blocks is currently required.
+
+This is output identity containment, NOT full source-data validation: matching
+headers could still accompany stale/mixed financial tables. It does not fix
+shared storage/session concurrency, account switches, late callbacks after timeout,
+Excel content identity, or browser completion/teardown. Coordinator remains unwired.
+Next work must verify source data and ownership/cancellation rather than claim the
+header guard alone solves data contamination.
+
+Run `npm run test:pdf-identity` in addition to coordinator/frame/output tests.
+
 ## Coordinator contract
 
 A future singleton in the service worker will serialize portal-mutating adapters
