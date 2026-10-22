@@ -1,0 +1,140 @@
+{
+  "name": "ReturnPilot - GST Return Downloader",
+  "short_name": "ReturnPilot",
+  "author": "KasyHQ",
+  "version": "4.2.5",
+  "description": "Download JSON, PDF & Excel for all GST returns including IMS Inward",
+  "homepage_url": "https://kasyhq.com/",
+  "manifest_version": 3,
+  "externally_connectable": {
+    "matches": [
+      "https://kasyhq.com/*",
+      "https://*.kasyhq.com/*"
+    ]
+  },
+  "permissions": [
+    "activeTab",
+    "downloads",
+    "scripting",
+    "storage",
+    "cookies",
+    "webNavigation",
+    "identity",
+    "declarativeNetRequestWithHostAccess",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "https://*.gst.gov.in/*",
+    "https://kasyhq.com/*",
+    "https://*.kasyhq.com/*",
+    "https://www.googleapis.com/oauth2/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [ {
+  "matches": [
+   "https://gstr2b.gst.gov.in/*"
+  ],
+  "js": [
+   "content/2b-contentscript.js"
+  ],
+  "run_at": "document_start",
+  "all_frames": true
+ },
+ {
+  "matches": [
+   "https://gstr1a.gst.gov.in/*"
+  ],
+  "js": [
+   "content/gstr1a-contentscript.js"
+  ],
+  "run_at": "document_start",
+  "all_frames": true
+ },
+    {
+      "matches": [
+        "https://kasyhq.com/*",
+        "https://*.kasyhq.com/*"
+      ],
+      "js": [
+        "content/localhost-contentscript.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://services.gst.gov.in/services/login",
+        "https://services.gst.gov.in/services/auth/*",
+        "https://services.gst.gov.in/services/error/*",
+        "https://return.gst.gov.in/returns/auth/*",
+        "https://returns2.gst.gov.in/returns/auth/*"
+      ],
+      "js": [
+        "content/login-contentscript.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://fogstr4.gst.gov.in/*"
+      ],
+      "js": [
+        "content/gstr4-contentscript.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [ {
+   "resources": [
+    "assets/icons/*",
+    "content/2b-inject.js",
+    "content/gstr1-inject.js",
+    "content/gstr1a-inject.js",
+    "content/gstr9-inject.js",
+    "content/login-inject.js"
+   ],
+  "matches": [
+   "https://gstr2b.gst.gov.in/*",
+   "https://gstr1a.gst.gov.in/*",
+   "https://services.gst.gov.in/*",
+   "https://return.gst.gov.in/*",
+   "https://returns2.gst.gov.in/*"
+  ]
+ }
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "gst_referer_rules",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "action": {
+    "browser_style": false,
+    "default_title": "ReturnPilot — Your GST Copilot",
+    "default_popup": "popup/ReturnPilot.html",
+    "default_icon": {
+      "16": "assets/icons/icon-16.png",
+      "32": "assets/icons/icon-32.png",
+      "48": "assets/icons/icon-48.png",
+      "128": "assets/icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "assets/icons/icon-16.png",
+    "32": "assets/icons/icon-32.png",
+    "48": "assets/icons/icon-48.png",
+    "128": "assets/icons/icon-128.png"
+  },
+  "side_panel": {
+    "default_path": "popup/sidepanel.html"
+  }
+}
+

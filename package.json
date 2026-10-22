@@ -1,0 +1,30 @@
+{
+  "name": "returnpilot-extension",
+  "version": "4.2.5",
+  "description": "ReturnPilot GST Return Downloader Chrome Extension",
+  "private": true,
+  "scripts": {
+    "test": "node scripts/run-all-tests.js",
+    "test:all": "node scripts/run-all-tests.js",
+    "test:smoke": "node tests/smoke-test.js",
+    "test:backtest": "python tests/selenium_backtest_suite.py",
+    "test:backtest:live": "python tests/selenium_backtest_suite.py --live",
+    "test:selenium": "python tests/selenium_backtest_suite.py",
+    "test:e2e": "node tests/run-e2e.js",
+    "test:compliance": "node scripts/verify-webstore-compliance.js",
+    "audit": "node tests/run-all-audits.js",
+    "audit:cws": "node tests/cws-fast-approval-dnr-audit.js",
+    "test:audit": "node tests/run-all-audits.js",
+    "test:cws": "node tests/cws-fast-approval-dnr-audit.js",
+    "build": "node scripts/build-production.js",
+    "bump": "node scripts/bump-version.js",
+    "verify:dist": "node scripts/verify-dist.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1",
+    "terser": "^5.30.0"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3"
+  }
+}

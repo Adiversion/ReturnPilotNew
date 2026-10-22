@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Screenshot 3 — High-Conversion Bulk Operations</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            width: 1280px;
+            height: 800px;
+            overflow: hidden;
+            background: linear-gradient(145deg, #090e24 0%, #17153b 50%, #090e24 100%);
+            font-family: 'Inter', system-ui, sans-serif;
+            color: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 32px 48px 20px 48px;
+            position: relative;
+        }
+
+        .ambient-glow {
+            position: absolute;
+            top: -120px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 900px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(168, 85, 247, 0.35) 0%, rgba(59, 130, 246, 0.18) 50%, transparent 80%);
+            filter: blur(70px);
+            pointer-events: none;
+        }
+
+        .header { text-align: center; z-index: 10; }
+        
+        .top-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(168, 85, 247, 0.18);
+            border: 1px solid rgba(192, 132, 252, 0.45);
+            color: #e9d5ff;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 4px 14px;
+            border-radius: 9999px;
+            margin-bottom: 6px;
+        }
+        .top-pill::before {
+            content: "⚡";
+            font-size: 11px;
+        }
+
+        .title {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 30px;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            color: #ffffff;
+            line-height: 1.2;
+        }
+        .title span {
+            background: linear-gradient(135deg, #c084fc 0%, #a855f7 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .subtitle {
+            font-size: 13.5px;
+            color: #cbd5e1;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        /* 3-Column Feature Cards Layout */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            width: 1000px;
+            height: 565px;
+            z-index: 10;
+        }
+
+        .feature-box {
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 30px 70px -15px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.18);
+            padding: 26px 22px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            color: #0f172a;
+        }
+
+        .box-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .box-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+        .icon-orange { background: #fff7ed; color: #ea580c; border: 1px solid #fed7aa; }
+        .icon-green { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+        .icon-blue { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+
+        .box-title h3 { font-size: 16px; font-weight: 800; color: #0f172a; }
+        .box-title p { font-size: 12px; color: #64748b; margin-top: 2px; }
+
+        .box-body {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin: 18px 0;
+        }
+
+        .action-chip {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 9px 12px;
+            border-radius: 6px;
+            font-size: 11.5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .action-chip strong { color: #1e293b; font-weight: 700; }
+        .action-chip span { color: #64748b; font-size: 10.5px; }
+
+        .box-footer {
+            padding-top: 14px;
+            border-top: 1px solid #f1f5f9;
+            font-size: 11.5px;
+            color: #475569;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .box-footer strong { color: #0f172a; }
+
+        .footer-note { font-size: 11px; color: #94a3b8; text-align: center; z-index: 10; }
+    </style>
+</head>
+<body>
+    <div class="ambient-glow"></div>
+
+    <div class="header">
+        <div class="top-pill">Full Financial Year in 5 Seconds</div>
+        <h1 class="title">Bulk Generate & Download <span>12 Months in 1 Click</span></h1>
+        <p class="subtitle">Eliminate repetitive portal clicks with intelligent automated batch queues.</p>
+    </div>
+
+    <div class="features-grid">
+        <!-- Box 1: Generate All -->
+        <div class="feature-box">
+            <div>
+                <div class="box-header">
+                    <div class="box-icon icon-orange">⚡</div>
+                    <div class="box-title">
+                        <h3>Generate All</h3>
+                        <p>Automated Portal Trigger</p>
+                    </div>
+                </div>
+                <div class="box-body">
+                    <div class="action-chip">
+                        <strong>1-Click Multi-Month Queue</strong>
+                        <span>Auto-Triggers</span>
+                    </div>
+                    <p style="font-size:12px; color:#475569; line-height:1.5;">
+                        Instructs the GST portal to queue and prepare return files for all 12 periods at once, saving over 40 minutes of manual clicking.
+                    </p>
+                    <div class="action-chip">
+                        <strong>Live Status Polling</strong>
+                        <span>Zero Wait</span>
+                    </div>
+                </div>
+            </div>
+            <div class="box-footer">
+                <span>Scope: <strong>All Filing Months</strong></span>
+                <span style="color:#ea580c; font-weight:700;">● 1-Click Speed</span>
+            </div>
+        </div>
+
+        <!-- Box 2: Bulk Multi-Format Exports -->
+        <div class="feature-box">
+            <div>
+                <div class="box-header">
+                    <div class="box-icon icon-green">📦</div>
+                    <div class="box-title">
+                        <h3>JSON, Excel & PDF All</h3>
+                        <p>Batch Export Center</p>
+                    </div>
+                </div>
+                <div class="box-body">
+                    <div class="action-chip">
+                        <strong>JSON All</strong>
+                        <span>Full Year ZIP Archive</span>
+                    </div>
+                    <div class="action-chip">
+                        <strong>Excel All</strong>
+                        <span>Audit-Ready Workbooks</span>
+                    </div>
+                    <div class="action-chip">
+                        <strong>Summary & Detail PDF All</strong>
+                        <span>High-Speed Vector PDFs</span>
+                    </div>
+                </div>
+            </div>
+            <div class="box-footer">
+                <span>Output: <strong>Clean Local Files</strong></span>
+                <span style="color:#16a34a; font-weight:700;">● Tally / Zoho Ready</span>
+            </div>
+        </div>
+
+        <!-- Box 3: Multi-Year Timeline -->
+        <div class="feature-box">
+            <div>
+                <div class="box-header">
+                    <div class="box-icon icon-blue">📅</div>
+                    <div class="box-title">
+                        <h3>Multi-Year Switcher</h3>
+                        <p>8+ Financial Years</p>
+                    </div>
+                </div>
+                <div class="box-body">
+                    <div class="action-chip">
+                        <strong>FY 2024-25 & 2023-24</strong>
+                        <span>Active Filings</span>
+                    </div>
+                    <div class="action-chip">
+                        <strong>FY 2017-18 to 2022-23</strong>
+                        <span>Audit Archives</span>
+                    </div>
+                    <p style="font-size:12px; color:#475569; line-height:1.5;">
+                        Instantly retrieve historical GST return records and audit packages across any financial year since GST inception.
+                    </p>
+                </div>
+            </div>
+            <div class="box-footer">
+                <span>Coverage: <strong>From July 2017</strong></span>
+                <span style="color:#2563eb; font-weight:700;">● CA Practice Tool</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer-note">
+        ReturnPilot is an independent tool by KasyHQ. 100% Client-Side In-Memory Processing.
+    </div>
+</body>
+</html>

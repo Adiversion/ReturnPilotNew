@@ -1,0 +1,61 @@
+{
+  "manifest_version": 3,
+  "name": "ReturnPilot Test Lab — 2026 Native Trigger Harness",
+  "version": "1.0.0",
+  "description": "Empirical Test Environment with 2B, 3B, and GSTR-1 Native PDF & Excel Downloads using 2026 Direct Triggers",
+  "permissions": [
+    "offscreen",
+    "downloads",
+    "scripting",
+    "storage",
+    "cookies",
+    "tabs",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "*://*.gst.gov.in/*",
+    "*://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup/test-dashboard.html",
+    "default_title": "ReturnPilot Test Lab"
+  },
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "gstr2b_rules",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://gstr2b.gst.gov.in/*"
+      ],
+      "js": [
+        "content/2b-contentscript.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "lib/*",
+        "core/*",
+        "mock-portal/*",
+        "content/*"
+      ],
+      "matches": [
+        "*://*.gst.gov.in/*",
+        "*://*/*"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,447 @@
+# AI Engineering Prompt: ReturnPilot Download Diagnostics & GST Portal Activity Logger
+
+## 1. Objective
+
+I want to investigate and fix missing or incomplete downloads in my existing **ReturnPilot GST Chrome Extension**.
+
+There are two deliverables:
+
+1. **Enhance the existing ReturnPilot extension** with comprehensive logging that records every step when I download GST return files in PDF, Excel, or JSON format for any month or financial period.
+2. **Build a separate Chrome diagnostic extension** that records the steps and network activity involved when I manually download the same returns directly from the GST portal, without using ReturnPilot.
+
+The ultimate goal is to compare both workflows and determine exactly why a file downloads successfully in one workflow but fails, is missing, is incomplete, or never becomes available in the other.
+
+Do not immediately rewrite the existing implementation. First inspect the repository, understand the current architecture, trace the download workflows, and develop an evidence-based implementation plan.
+
+## 2. Project Context
+
+ReturnPilot is a Chrome extension for automating GST return downloads from the Indian GST portal.
+
+Supported return types include:
+
+- GSTR-1
+- GSTR-3B
+- GSTR-2A
+- GSTR-2B
+- GSTR-9
+- GSTR-9C
+- IMS inward-related downloads, where currently supported
+
+Supported output formats include PDF, Excel, and JSON, depending on the return type and the existing portal functionality.
+
+The extension uses Manifest V3, background service workers, content scripts, browser downloads, and authenticated GST portal requests. Some requests may pass through a localhost bridge between the frontend and extension background worker.
+
+Relevant components may include:
+
+- `manifest.json`
+- `background.js`
+- Content scripts
+- `localhost-contentscript.js`
+- Popup or side-panel UI
+- API request and response handlers
+- Download creation and completion handlers
+- Authentication and session-management logic
+
+These are examples, not guaranteed filenames. Discover the actual repository structure before making changes.
+
+## 3. Deliverable A: Instrument the Existing ReturnPilot Extension
+
+Add a structured diagnostic logger that records every meaningful stage of a download operation.
+
+Logging must work for every supported combination of return type, financial period, and file format.
+
+### A.1 Download lifecycle events
+
+For each download operation, record the following events where applicable:
+
+1. User selects a return type.
+2. User selects a financial year or period.
+3. User selects a month or return period.
+4. User clicks PDF, Excel, or JSON.
+5. Frontend validates the request.
+6. Frontend sends the request to the background worker or localhost bridge.
+7. Background worker receives the request.
+8. Authentication and session availability are checked.
+9. Request URL, HTTP method, and relevant non-sensitive parameters are recorded.
+10. Request is dispatched.
+11. Request starts and completes, or fails.
+12. HTTP status and response content type are recorded.
+13. Response size and duration are recorded where available.
+14. Response validation begins.
+15. The system determines whether the response contains the expected file or valid data.
+16. Any parsing, decoding, decompression, or conversion step is recorded, if applicable.
+17. The download is prepared.
+18. The browser download API is called.
+19. A browser download ID is received, where available.
+20. The browser download changes state.
+21. The download completes, is interrupted, or fails.
+22. The final file is checked for basic integrity where feasible.
+23. The operation is marked successful, failed, incomplete, or inconclusive.
+
+Record the actual events observed by the implementation. Do not create misleading log entries that imply a stage succeeded when it was only attempted.
+
+### A.2 Structured log schema
+
+Use JSON Lines or an equivalent structured format.
+
+Each log entry should contain fields such as:
+
+- `timestamp`
+- `sessionId`
+- `operationId`
+- `parentOperationId`
+- `eventId`
+- `event`
+- `component`
+- `returnType`
+- `financialYear`
+- `returnPeriod`
+- `format`
+- `requestId`
+- `httpMethod`
+- `endpoint`
+- `httpStatus`
+- `contentType`
+- `responseBytes`
+- `durationMs`
+- `browserDownloadId`
+- `filename`
+- `expectedFileType`
+- `actualFileType`
+- `success`
+- `errorCode`
+- `errorMessage`
+- `diagnosticDetails`
+
+Use unique operation IDs to correlate frontend events, background requests, API responses, and browser download events.
+
+Not every field will be available at every stage. Use null or omit unavailable fields rather than inventing values.
+
+Do not log passwords, OTPs, CAPTCHA solutions, authentication cookies, access tokens, authorization headers, or other session secrets.
+
+### A.3 Detect silent failures
+
+The logger must help identify cases where:
+
+- The click handler never runs.
+- The frontend sends the wrong return type, period, or format.
+- The message never reaches the background worker.
+- A localhost bridge request is lost or times out.
+- Authentication expires or becomes invalid.
+- A request is sent to the wrong endpoint.
+- The portal returns an error despite an apparently successful HTTP response.
+- A response contains HTML instead of the expected file.
+- The response body is empty or unexpectedly small.
+- A JSON response is malformed or contains an application-level error.
+- A PDF response is an error page rather than a valid PDF.
+- An Excel response is HTML, JSON, or another unexpected format.
+- A blob, stream, or binary response is truncated.
+- The download API rejects the request.
+- A download remains in progress or is interrupted.
+- The browser completes a download that is nevertheless invalid or incomplete.
+- Multiple requests are expected but only some are made.
+- One stage succeeds while a later stage fails.
+- A download appears successful in the UI but no corresponding file exists.
+
+Do not assume that HTTP 200 or Chrome's download-complete state guarantees a valid GST return file.
+
+Use format-aware validation where practical. For example, check PDF signatures and basic structure, parse JSON, and verify XLSX ZIP-container integrity without exposing file contents.
+
+### A.4 Handle multiple concurrent downloads
+
+Support multiple months, return types, and formats being downloaded during the same session.
+
+Each operation must have its own correlation ID. Logs must not mix events from different downloads.
+
+Record retry attempts separately and link them to the original operation. Do not automatically introduce retries that could create duplicate downloads or change existing behavior.
+
+### A.5 Logging interface and export
+
+Add a diagnostic interface to ReturnPilot with:
+
+- Start and stop logging controls, if necessary.
+- Live log entries.
+- Filtering by return type, period, format, status, and error.
+- Search by operation ID.
+- Expandable event details.
+- Download or export of diagnostic logs as JSONL or JSON.
+- A summary of successful, failed, incomplete, and inconclusive operations.
+- A way to copy an operation's complete event timeline.
+
+Logging should be lightweight, avoid materially slowing downloads, and remain useful when a Manifest V3 service worker restarts.
+
+Persist logs safely using suitable extension storage or IndexedDB, with bounded retention and configurable export. Do not rely exclusively on in-memory arrays or console output.
+
+## 4. Deliverable B: Build a Separate GST Portal Diagnostic Extension
+
+Create a second, independent Chrome extension dedicated to observing manual GST portal downloads.
+
+Its purpose is to establish a baseline of what actually happens when I use the GST website directly, without triggering ReturnPilot.
+
+### B.1 Core behavior
+
+When I open the GST portal and manually navigate to a return, select a financial year or month, and click PDF, Excel, or another available download option, the diagnostic extension should record observable events.
+
+It should capture, where technically and legally permitted:
+
+- Navigation between relevant portal pages.
+- User actions associated with the diagnostic workflow, such as clicks on download controls.
+- Relevant DOM state before and after an action.
+- Requests initiated during the operation.
+- Request method and URL or sanitized endpoint.
+- Request timing and completion timing.
+- HTTP status, when observable.
+- Response content type and size, when available.
+- Redirects and failures, when observable.
+- Whether the browser initiated a download.
+- Download filename, browser download ID, and final state, where accessible.
+- Errors visible in the page.
+- The relationship between the selected return period and the resulting download.
+- The sequence of events from the initial click to the final download state.
+
+Do not claim the extension can observe information that Chrome does not expose to it.
+
+### B.2 Technical feasibility assessment first
+
+Before implementation, determine which diagnostic signals are available through:
+
+- Chrome `webRequest`, subject to Manifest V3 restrictions.
+- `chrome.downloads` and its download-state events.
+- Content scripts and DOM observation.
+- `chrome.webNavigation`.
+- `chrome.debugger` only if justified and explicitly enabled by the user.
+- Page-level instrumentation, if needed and compatible with the portal.
+- Browser DevTools or a manually exported HAR file as a supplementary source.
+
+Do not assume a content script can inspect every network response body. Do not assume `webRequest` exposes response bodies or all request details.
+
+If complete response inspection is not possible through an ordinary extension, document the limitation and recommend an explicit diagnostic mode using Chrome DevTools Protocol or a HAR export.
+
+Prefer the least intrusive approach that captures the evidence needed. Avoid debugger permissions unless they provide essential additional information and the user explicitly enables that mode.
+
+### B.3 Separate extension and isolated workflow
+
+The diagnostic extension must remain separate from ReturnPilot.
+
+It must not:
+
+- Trigger ReturnPilot download functions.
+- Change the portal's normal download behavior.
+- Automatically submit GST forms.
+- Modify requests or responses.
+- Bypass CAPTCHA or authentication.
+- Replay authenticated requests.
+- Change account or filing data.
+
+The manual diagnostic workflow should remain a normal user-driven GST portal session.
+
+### B.4 Diagnostic user interface
+
+Provide a simple interface with:
+
+- Start recording.
+- Stop recording.
+- Current recording status.
+- Event timeline.
+- Request and download counts.
+- Failed or suspicious operations.
+- A per-download event sequence.
+- Export to JSON or JSONL.
+- Optional HAR import for analysis.
+- A clear indication of which events could not be observed.
+
+Allow the user to label a recording with the company identifier or an alias, return type, financial year, period, and format. Treat labels as user-provided metadata, not independently verified facts.
+
+## 5. Deliverable C: Compare ReturnPilot and Manual Downloads
+
+Create a comparison workflow that can correlate the same return type, period, and format across the two recording sources.
+
+For example:
+
+- Return type: GSTR-3B
+- Financial year: 2025-26
+- Period: April 2025
+- Format: PDF
+
+Compare:
+
+| Diagnostic area | ReturnPilot | Manual GST portal |
+|---|---|---|
+| User action | Recorded or missing | Recorded or missing |
+| Selected period | Observed values | Observed values |
+| Request sequence | Actual captured requests | Actual captured requests |
+| Endpoint and method | Sanitized details | Sanitized details |
+| HTTP response | Status and metadata | Status and metadata |
+| Response format | Observed content type | Observed content type |
+| Response validation | Validation results | Validation results |
+| Browser download | State and errors | State and errors |
+| File integrity | Available checks | Available checks |
+| Final result | Success/failure classification | Success/failure classification |
+
+The comparison engine should highlight:
+
+- Requests made manually but missing in ReturnPilot.
+- Additional requests made by ReturnPilot.
+- Different request parameters or endpoints.
+- Missing dependent requests.
+- Differences in authentication or session state.
+- Response content-type mismatches.
+- Missing or malformed response bodies, where measurable.
+- Differences in download filenames and file types.
+- Downloads that complete but fail validation.
+- Differences in timing or retry behavior.
+- Inconclusive comparisons caused by unavailable evidence.
+
+Do not assume two workflows must have identical request sequences. The portal may use different internal flows depending on the UI, return type, format, or current portal implementation.
+
+Correlate operations by return type, period, format, and observable behavior. Distinguish confirmed defects from plausible causes.
+
+## 6. Root-Cause Analysis Requirements
+
+When a download fails, generate a concise diagnostic report containing:
+
+1. **Observed failure:** What actually happened.
+2. **Last successful stage:** The last event confirmed to have succeeded.
+3. **First failing or missing stage:** Where the workflow diverged or stopped.
+4. **Evidence:** Relevant timestamps, statuses, sanitized endpoints, response metadata, and error messages.
+5. **Manual comparison:** Whether the corresponding manual workflow succeeded and what differed.
+6. **Likely cause:** A hypothesis supported by the captured evidence.
+7. **Confidence:** High, Moderate, or Low.
+8. **Recommended fix:** The smallest appropriate change.
+9. **Regression tests:** How to verify the fix across return types, periods, and formats.
+
+If evidence cannot identify the root cause, explicitly state what additional capture is required. Do not label a hypothesis as a confirmed defect.
+
+## 7. Security, Privacy, and Reliability
+
+GST sessions can contain sensitive taxpayer information.
+
+Therefore:
+
+- Never persist passwords, OTPs, CAPTCHA values, cookies, authorization headers, or access tokens in logs.
+- Redact GSTINs, PANs, names, invoice information, and other sensitive data unless specific fields are necessary and explicitly enabled for a controlled diagnostic session.
+- Sanitize query parameters that may contain sensitive information.
+- Do not upload diagnostic logs to a remote server by default.
+- Keep exports local and user-controlled.
+- Make recording status visible.
+- Add a clear way to stop recording and clear stored diagnostics.
+- Use bounded retention and avoid storing complete response bodies unless specifically justified.
+- If response-body capture is needed, prefer metadata and integrity checks first; make deeper capture explicit, temporary, and narrowly scoped.
+- Preserve the existing extension's authentication and download behavior unless a verified defect requires a change.
+
+## 8. Testing Requirements
+
+Test the existing extension and diagnostic extension independently.
+
+Include at least these scenarios:
+
+1. Successful GSTR-3B PDF download.
+2. Successful GSTR-3B JSON or Excel download, where supported.
+3. Successful GSTR-1 download.
+4. Successful GSTR-2B download.
+5. A return period with no available data.
+6. An expired or invalid session.
+7. An HTTP error response.
+8. An HTTP 200 response containing an application-level error.
+9. An HTML error page returned when a binary file is expected.
+10. An empty or malformed response.
+11. An interrupted browser download.
+12. A missing message between frontend and background worker.
+13. A localhost bridge timeout.
+14. Multiple concurrent downloads.
+15. A service worker restart during a download.
+16. A download that completes but fails file-integrity validation.
+17. Manual portal download with successful completion.
+18. Manual portal download that fails.
+19. A return type or format with a different portal workflow.
+20. Exporting, clearing, and reloading diagnostic logs.
+
+Use mocked responses and controlled test fixtures for failure cases. Use a real GST portal session only for authorized, user-initiated integration testing. Do not automate filing or alter live taxpayer records.
+
+## 9. Implementation Workflow
+
+Follow this sequence:
+
+### Phase 1 — Repository discovery
+
+- Inspect the entire relevant repository.
+- Identify the existing download functions and all return-specific branches.
+- Map frontend-to-background messaging and any localhost bridge.
+- Identify authentication, API requests, blob handling, conversion, and download APIs.
+- Locate existing error handling, logging, and tests.
+- Identify any differences between PDF, Excel, and JSON download flows.
+- Document the current architecture before changing it.
+
+### Phase 2 — Baseline tracing
+
+Trace one successful download for each of GSTR-1, GSTR-3B, and GSTR-2B, using the currently supported formats.
+
+Identify all steps that are already observable and all steps where instrumentation is required.
+
+### Phase 3 — Diagnostic design
+
+Produce a short technical design covering:
+
+- Event schema.
+- Correlation IDs.
+- Persistent storage.
+- Logger lifecycle.
+- Manual diagnostic extension architecture.
+- Manifest permissions.
+- Network visibility limitations.
+- Privacy safeguards.
+- Comparison algorithm.
+- Testing strategy.
+
+### Phase 4 — Implementation
+
+Implement the ReturnPilot logger first without changing business logic unnecessarily.
+
+Then build the independent manual-download diagnostic extension.
+
+Finally, build the comparison and export workflow.
+
+### Phase 5 — Verification
+
+Run available automated tests and static checks. Perform controlled download tests where possible.
+
+Provide a clear report of:
+
+- Files created or modified.
+- Actual implementation changes.
+- Tests passed and failed.
+- Known limitations.
+- Any unverified assumptions.
+- Steps to reproduce a diagnostic recording.
+- Instructions for exporting and comparing logs.
+
+## 10. Important Engineering Rules
+
+- Do not guess how the GST portal works; inspect actual requests and responses.
+- Do not assume a missing file means the download API failed.
+- Do not assume the browser's download-complete event proves file integrity.
+- Do not rewrite working download code before identifying a reproducible defect.
+- Do not change request parameters or authentication behavior merely to make the logger easier to implement.
+- Preserve backward compatibility with existing ReturnPilot functionality.
+- Do not fabricate test results or claim successful portal tests without actually running them.
+- Prefer small, independently testable changes.
+- Keep the diagnostic extension isolated from production extension behavior.
+- Explain every required Chrome permission and why it is needed.
+- If the repository already contains a relevant implementation, extend it rather than creating unnecessary duplicate systems.
+
+## 11. Expected Final Deliverables
+
+Deliver:
+
+1. A repository and architecture assessment.
+2. A map of each supported return-download workflow.
+3. A working structured logger integrated into ReturnPilot.
+4. A separate manual GST portal diagnostic Chrome extension.
+5. Exportable diagnostic logs.
+6. A comparison tool or report generator for matching operations.
+7. Root-cause reports with evidence and confidence levels.
+8. Automated tests and reproducible manual test instructions.
+9. Documentation covering setup, permissions, recording, export, comparison, and troubleshooting.
+10. A prioritized list of confirmed bugs, likely bugs, and unresolved questions.
+
+**Primary success criterion:** After I click a download button for any supported return, month, and format, I should be able to reconstruct the observable download lifecycle and identify exactly which stage failed—or clearly see which additional evidence is needed. I should then be able to perform the same download manually on the GST portal, record that workflow separately, and compare the two to isolate what ReturnPilot is missing or doing differently.

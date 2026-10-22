@@ -1,0 +1,318 @@
+[
+  {
+    "id": 102,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        { "header": "x-frame-options", "operation": "remove" },
+        { "header": "X-Frame-Options", "operation": "remove" },
+        { "header": "content-security-policy", "operation": "remove" },
+        { "header": "frame-options", "operation": "remove" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||gstr2b.gst.gov.in^",
+      "resourceTypes": ["sub_frame", "main_frame"]
+    }
+  },
+  {
+    "id": 101,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "Referer", "operation": "set", "value": "https://return.gst.gov.in" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||return.gst.gov.in^",
+      "resourceTypes": ["xmlhttprequest"],
+      "excludedInitiatorDomains": ["gst.gov.in"]
+    }
+  },
+  {
+    "id": 103,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "Referer", "operation": "set", "value": "https://gstr2b.gst.gov.in" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||gstr2b.gst.gov.in^",
+      "resourceTypes": ["xmlhttprequest"],
+      "excludedInitiatorDomains": ["gst.gov.in"]
+    }
+  },
+  {
+    "id": 104,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "Referer", "operation": "set", "value": "https://payment.gst.gov.in" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||payment.gst.gov.in^",
+      "resourceTypes": ["xmlhttprequest"],
+      "excludedInitiatorDomains": ["gst.gov.in"]
+    }
+  },
+  {
+    "id": 105,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "Origin", "operation": "set", "value": "https://services.gst.gov.in" },
+        { "header": "Referer", "operation": "set", "value": "https://publicservices.gst.gov.in" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||publicservices.gst.gov.in^",
+      "resourceTypes": ["xmlhttprequest"]
+    }
+  },
+  {
+    "id": 106,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "Referer", "operation": "set", "value": "https://gstr1a.gst.gov.in" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||gstr1a.gst.gov.in^",
+      "resourceTypes": ["xmlhttprequest"],
+      "excludedInitiatorDomains": ["gst.gov.in"]
+    }
+  },
+  {
+    "id": 107,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        { "header": "x-frame-options", "operation": "remove" },
+        { "header": "X-Frame-Options", "operation": "remove" },
+        { "header": "content-security-policy", "operation": "remove" },
+        { "header": "frame-options", "operation": "remove" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||gstr1a.gst.gov.in^",
+      "resourceTypes": ["sub_frame", "main_frame"]
+    }
+  },
+  {
+    "id": 108,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        { "header": "x-frame-options", "operation": "remove" },
+        { "header": "X-Frame-Options", "operation": "remove" },
+        { "header": "content-security-policy", "operation": "remove" },
+        { "header": "frame-options", "operation": "remove" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||return.gst.gov.in^",
+      "resourceTypes": ["sub_frame", "main_frame"]
+    }
+  },
+  {
+    "id": 109,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        { "header": "x-frame-options", "operation": "remove" },
+        { "header": "X-Frame-Options", "operation": "remove" },
+        { "header": "content-security-policy", "operation": "remove" },
+        { "header": "frame-options", "operation": "remove" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||returns2.gst.gov.in^",
+      "resourceTypes": ["sub_frame", "main_frame"]
+    }
+  },
+  {
+    "id": 110,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "Referer", "operation": "set", "value": "https://services.gst.gov.in/services/login" },
+        { "header": "Origin", "operation": "set", "value": "https://services.gst.gov.in" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||services.gst.gov.in^",
+      "resourceTypes": ["xmlhttprequest"],
+      "excludedInitiatorDomains": ["gst.gov.in"]
+    }
+  },
+  {
+    "id": 111,
+    "priority": 2,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        { "header": "access-control-allow-origin", "operation": "set", "value": "https://return.gst.gov.in" },
+        { "header": "access-control-allow-credentials", "operation": "set", "value": "true" },
+        { "header": "access-control-allow-methods", "operation": "set", "value": "GET, POST, OPTIONS" },
+        { "header": "access-control-allow-headers", "operation": "set", "value": "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Origin,Content-Type,Accept,Pragma,Expires,at" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||services.gst.gov.in^",
+      "initiatorDomains": ["return.gst.gov.in"],
+      "resourceTypes": ["xmlhttprequest", "other"]
+    }
+  },
+  {
+    "id": 112,
+    "priority": 2,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "Referer", "operation": "set", "value": "https://services.gst.gov.in/services/auth/fowelcome" },
+        { "header": "Origin", "operation": "set", "value": "https://services.gst.gov.in" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||services.gst.gov.in/services/auth/",
+      "resourceTypes": ["xmlhttprequest", "other"]
+    }
+  },
+  {
+    "id": 113,
+    "priority": 2,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        { "header": "access-control-allow-origin", "operation": "set", "value": "*" },
+        { "header": "access-control-allow-methods", "operation": "set", "value": "GET, POST, OPTIONS" },
+        { "header": "access-control-allow-headers", "operation": "set", "value": "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Origin,Content-Type,Accept,Pragma,Expires,at" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||services.gst.gov.in^",
+      "excludedInitiatorDomains": ["gst.gov.in"],
+      "resourceTypes": ["xmlhttprequest", "other"]
+    }
+  },
+  {
+    "id": 114,
+    "priority": 2,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        { "header": "access-control-allow-origin", "operation": "set", "value": "https://returns2.gst.gov.in" },
+        { "header": "access-control-allow-credentials", "operation": "set", "value": "true" },
+        { "header": "access-control-allow-methods", "operation": "set", "value": "GET, POST, OPTIONS" },
+        { "header": "access-control-allow-headers", "operation": "set", "value": "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Origin,Content-Type,Accept,Pragma,Expires,at" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||services.gst.gov.in^",
+      "initiatorDomains": ["returns2.gst.gov.in"],
+      "resourceTypes": ["xmlhttprequest", "other"]
+    }
+  },
+  {
+    "id": 115,
+    "priority": 2,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        { "header": "access-control-allow-origin", "operation": "set", "value": "https://services.gst.gov.in" },
+        { "header": "access-control-allow-credentials", "operation": "set", "value": "true" },
+        { "header": "access-control-allow-methods", "operation": "set", "value": "GET, POST, OPTIONS" },
+        { "header": "access-control-allow-headers", "operation": "set", "value": "at,DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Origin,Content-Type,Accept,Pragma,Expires" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||publicservices.gst.gov.in^",
+      "initiatorDomains": ["services.gst.gov.in"],
+      "resourceTypes": ["xmlhttprequest", "other"]
+    }
+  },
+  {
+    "id": 116,
+    "priority": 2,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        { "header": "access-control-allow-origin", "operation": "set", "value": "https://return.gst.gov.in" },
+        { "header": "access-control-allow-credentials", "operation": "set", "value": "true" },
+        { "header": "access-control-allow-methods", "operation": "set", "value": "GET, POST, OPTIONS" },
+        { "header": "access-control-allow-headers", "operation": "set", "value": "at,DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Origin,Content-Type,Accept,Pragma,Expires" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||publicservices.gst.gov.in^",
+      "initiatorDomains": ["return.gst.gov.in"],
+      "resourceTypes": ["xmlhttprequest", "other"]
+    }
+  },
+  {
+    "id": 117,
+    "priority": 2,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        { "header": "access-control-allow-origin", "operation": "set", "value": "https://returns2.gst.gov.in" },
+        { "header": "access-control-allow-credentials", "operation": "set", "value": "true" },
+        { "header": "access-control-allow-methods", "operation": "set", "value": "GET, POST, OPTIONS" },
+        { "header": "access-control-allow-headers", "operation": "set", "value": "at,DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Origin,Content-Type,Accept,Pragma,Expires" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||publicservices.gst.gov.in^",
+      "initiatorDomains": ["returns2.gst.gov.in"],
+      "resourceTypes": ["xmlhttprequest", "other"]
+    }
+  },
+  {
+    "id": 118,
+    "priority": 2,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        { "header": "access-control-allow-origin", "operation": "set", "value": "https://services.gst.gov.in" },
+        { "header": "access-control-allow-credentials", "operation": "set", "value": "true" },
+        { "header": "access-control-allow-methods", "operation": "set", "value": "GET, POST, OPTIONS" },
+        { "header": "access-control-allow-headers", "operation": "set", "value": "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Origin,Content-Type,Accept,Pragma,Expires,at" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||services.gst.gov.in^",
+      "initiatorDomains": ["services.gst.gov.in"],
+      "resourceTypes": ["xmlhttprequest", "other"]
+    }
+  },
+  {
+    "id": 119,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        { "header": "x-frame-options", "operation": "remove" },
+        { "header": "X-Frame-Options", "operation": "remove" },
+        { "header": "content-security-policy", "operation": "remove" },
+        { "header": "frame-options", "operation": "remove" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||services.gst.gov.in^",
+      "resourceTypes": ["sub_frame", "main_frame"]
+    }
+  }
+]

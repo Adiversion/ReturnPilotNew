@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ReturnPilot GSTR-1 Recorder</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; width: 340px; margin: 0; background: #0f172a; color: #e2e8f0; font-size: 13px; }
+    header { padding: 10px 12px; background: #1e293b; border-bottom: 1px solid #334155; }
+    header h1 { margin: 0; font-size: 14px; color: #f8fafc; }
+    header p { margin: 2px 0 0; color: #94a3b8; font-size: 11px; }
+    main { padding: 12px; }
+    .field { margin-bottom: 10px; }
+    label { display: block; margin-bottom: 4px; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+    .radio-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .radio-row label.opt { display: flex; align-items: center; gap: 4px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 12px; text-transform: none; letter-spacing: 0; color: #e2e8f0; }
+    .radio-row label.opt input { margin: 0; }
+    .radio-row label.opt.checked { border-color: #38bdf8; background: #0c4a6e; }
+    input[type="text"] { width: 100%; background: #1e293b; border: 1px solid #334155; color: #e2e8f0; border-radius: 6px; padding: 6px 8px; font-size: 12px; }
+    .btns { display: flex; gap: 6px; }
+    button { flex: 1; border: 0; border-radius: 6px; padding: 8px 4px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    #btnSnapshot { background: #38bdf8; color: #0c4a6e; }
+    #btnExport { background: #4ade80; color: #052e16; }
+    #btnClear { flex: 0 0 auto; background: #334155; color: #cbd5e1; padding: 8px 10px; }
+    .status { margin-top: 10px; min-height: 16px; font-size: 11px; }
+    .status.ok { color: #4ade80; }
+    .status.err { color: #f87171; }
+    #count { margin-top: 4px; color: #94a3b8; font-size: 11px; }
+    details { margin-top: 10px; border: 1px solid #334155; border-radius: 6px; padding: 8px; background: #1e293b; }
+    summary { cursor: pointer; color: #7dd3fc; font-size: 12px; }
+    details ol { margin: 6px 0 0; padding-left: 18px; color: #cbd5e1; }
+    details li { margin-bottom: 4px; }
+    code { background: #0f172a; padding: 0 3px; border-radius: 3px; color: #fbbf24; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📼 GSTR-1 Recorder</h1>
+    <p>Captures DOM, ng-click structure, scope flags &amp; API calls on gst.gov.in</p>
+  </header>
+  <main>
+    <div class="field">
+      <label>Scenario you are recording</label>
+      <div class="radio-row" id="scenarioRow">
+        <label class="opt"><input type="radio" name="scenario" value="old-format"> Old format (pre Nov 2021)</label>
+        <label class="opt"><input type="radio" name="scenario" value="new-filed" checked> New — filed</label>
+        <label class="opt"><input type="radio" name="scenario" value="new-nil"> New — NIL</label>
+        <label class="opt"><input type="radio" name="scenario" value="other"> Other</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Note for this snapshot (e.g. "landing page", "Request Rejected", "summary page")</label>
+      <input type="text" id="note" placeholder="optional note…">
+    </div>
+    <div class="btns">
+      <button id="btnSnapshot">📸 Capture snapshot</button>
+      <button id="btnExport">⏬ Export JSON</button>
+      <button id="btnClear" title="Clear all recordings">🧹</button>
+    </div>
+    <div class="status" id="status"></div>
+    <div id="count"></div>
+
+    <details>
+      <summary>How to record the 3 scenarios</summary>
+      <ol>
+        <li>Load this extension: <code>chrome://extensions</code> → Developer mode → <b>Load unpacked</b> → select the <code>gstr1-recorder</code> folder.</li>
+        <li>Open gst.gov.in, log in, and <b>reload the tab</b> so the recorder attaches.</li>
+        <li>Pick the scenario above, then click 📸 <b>on every page state</b> as you walk the flow.</li>
+        <li>Old format: GSTR-1 → a period <b>before Nov 2021</b> (e.g. 042021) → capture the landing page, then whatever the portal shows (error page / download button).</li>
+        <li>New filed: a recent period (e.g. 032022) → capture <b>landing page</b> → click <b>View Summary</b> → capture <b>summary page</b> → click <b>Download Summary (PDF)</b> → capture once more.</li>
+        <li>New NIL: a NIL-filed recent period → capture landing page + after clicking <b>Download Filed (PDF)</b>.</li>
+        <li>If you hit a <b>Request Rejected</b> or system-error page, capture it too — that's exactly what we need.</li>
+        <li>When done: ⏬ <b>Export JSON</b> and send the downloaded <code>.json</code> file back (one file per scenario is ideal).</li>
+      </ol>
+    </details>
+  </main>
+  <script src="recorder.js"></script>
+</body>
+</html>

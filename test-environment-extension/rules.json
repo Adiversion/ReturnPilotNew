@@ -1,0 +1,34 @@
+[
+  {
+    "id": 102,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        { "header": "x-frame-options", "operation": "remove" },
+        { "header": "X-Frame-Options", "operation": "remove" },
+        { "header": "content-security-policy", "operation": "remove" },
+        { "header": "frame-options", "operation": "remove" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||gstr2b.gst.gov.in^",
+      "resourceTypes": ["sub_frame", "main_frame"]
+    }
+  },
+  {
+    "id": 103,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "Referer", "operation": "set", "value": "https://gstr2b.gst.gov.in" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||gstr2b.gst.gov.in^",
+      "resourceTypes": ["xmlhttprequest"],
+      "excludedInitiatorDomains": ["gst.gov.in"]
+    }
+  }
+]

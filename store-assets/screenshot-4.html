@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Screenshot 4 — High-Conversion IMS & Reconciliation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            width: 1280px;
+            height: 800px;
+            overflow: hidden;
+            background: linear-gradient(145deg, #042f2e 0%, #061a29 60%, #042f2e 100%);
+            font-family: 'Inter', system-ui, sans-serif;
+            color: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 32px 48px 20px 48px;
+            position: relative;
+        }
+
+        .ambient-glow {
+            position: absolute;
+            top: -120px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 900px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.35) 0%, rgba(59, 130, 246, 0.18) 50%, transparent 80%);
+            filter: blur(70px);
+            pointer-events: none;
+        }
+
+        .header { text-align: center; z-index: 10; margin-bottom: 6px; }
+        
+        .top-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(16, 185, 129, 0.18);
+            border: 1px solid rgba(52, 211, 153, 0.45);
+            color: #6ee7b7;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 4px 14px;
+            border-radius: 9999px;
+            margin-bottom: 6px;
+        }
+        .top-pill::before {
+            content: "⚡";
+            font-size: 11px;
+        }
+
+        .title {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 29px;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            color: #ffffff;
+            line-height: 1.2;
+        }
+        .title span {
+            background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .subtitle {
+            font-size: 13.5px;
+            color: #cbd5e1;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        /* 4 Cards Grid */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 18px;
+            width: 1000px;
+            height: 545px;
+            z-index: 10;
+        }
+
+        .feature-card {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 22px;
+            color: #0f172a;
+            box-shadow: 0 30px 70px -15px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.18);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .card-top {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .card-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+        .icon-emerald { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+        .icon-blue { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+        .icon-purple { background: #faf5ff; color: #9333ea; border: 1px solid #e9d5ff; }
+        .icon-amber { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+
+        .card-heading h3 { font-size: 15.5px; font-weight: 800; color: #0f172a; }
+        .card-heading p { font-size: 11.5px; color: #64748b; margin-top: 2px; }
+
+        .card-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 14px;
+        }
+        .pill {
+            background: #f1f5f9;
+            color: #334155;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 9px;
+            border-radius: 4px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .card-footer {
+            padding-top: 12px;
+            border-top: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11.5px;
+            color: #64748b;
+        }
+        .card-footer strong { color: #0f172a; }
+
+        .footer-note { font-size: 11px; color: #cbd5e1; text-align: center; z-index: 10; }
+    </style>
+</head>
+<body>
+    <div class="ambient-glow"></div>
+
+    <div class="header">
+        <div class="top-pill">Reconciliation & Audit Suite</div>
+        <h1 class="title">IMS Matching, GSTR-1A, 2B & <span>Annual 9/9C Audit</span></h1>
+        <p class="subtitle">Complete support for Invoice Management System, outward amendments, ITC matching and annual audit packages.</p>
+    </div>
+
+    <div class="cards-grid">
+        <!-- Card 1: IMS Inward & Outward -->
+        <div class="feature-card">
+            <div>
+                <div class="card-top">
+                    <div class="card-icon icon-emerald">IMS</div>
+                    <div class="card-heading">
+                        <h3>Invoice Management System (IMS)</h3>
+                        <p>Inward & Outward supplier invoice matching</p>
+                    </div>
+                </div>
+                <div class="card-pills">
+                    <span class="pill">Accepted Invoices</span>
+                    <span class="pill">Rejected Actions</span>
+                    <span class="pill">Pending Actions</span>
+                    <span class="pill">Deemed Accepted</span>
+                    <span class="pill">Outward Status Ledger</span>
+                </div>
+            </div>
+            <div class="card-footer">
+                <span>Output: <strong>Excel & JSON Registers</strong></span>
+                <span style="color:#059669; font-weight:700;">● Live Portal Sync</span>
+            </div>
+        </div>
+
+        <!-- Card 2: GSTR-1A Outward Amendments -->
+        <div class="feature-card">
+            <div>
+                <div class="card-top">
+                    <div class="card-icon icon-blue">1A</div>
+                    <div class="card-heading">
+                        <h3>GSTR-1A Outward Supply Amendments</h3>
+                        <p>Real-time amendment capture prior to GSTR-3B</p>
+                    </div>
+                </div>
+                <div class="card-pills">
+                    <span class="pill">B2BA Amendments</span>
+                    <span class="pill">CDNRA Credit Notes</span>
+                    <span class="pill">EXPRA Exports</span>
+                    <span class="pill">Document Alterations</span>
+                </div>
+            </div>
+            <div class="card-footer">
+                <span>Formats: <strong>Custom Vector PDF & JSON</strong></span>
+                <span style="color:#2563eb; font-weight:700;">● Instant Export</span>
+            </div>
+        </div>
+
+        <!-- Card 3: GSTR-2B ITC Statement -->
+        <div class="feature-card">
+            <div>
+                <div class="card-top">
+                    <div class="card-icon icon-purple">2B</div>
+                    <div class="card-heading">
+                        <h3>GSTR-2B Auto-Drafted ITC Statement</h3>
+                        <p>Full 24-section auto-drafted ITC reconciliation</p>
+                    </div>
+                </div>
+                <div class="card-pills">
+                    <span class="pill">29-Sheet Excel Workbook</span>
+                    <span class="pill">B2B / B2BA Registers</span>
+                    <span class="pill">Import Goods (IMPG & SEZ)</span>
+                    <span class="pill">ISD Distributions</span>
+                </div>
+            </div>
+            <div class="card-footer">
+                <span>Speed: <strong>~1.2s In-Memory</strong></span>
+                <span style="color:#9333ea; font-weight:700;">● Full Compilation</span>
+            </div>
+        </div>
+
+        <!-- Card 4: GSTR-9 & 9C Annual Returns -->
+        <div class="feature-card">
+            <div>
+                <div class="card-top">
+                    <div class="card-icon icon-amber">9C</div>
+                    <div class="card-heading">
+                        <h3>GSTR-9 & 9C Annual Audit Package</h3>
+                        <p>Year-end audit statements & reconciliation</p>
+                    </div>
+                </div>
+                <div class="card-pills">
+                    <span class="pill">Annual Outward Taxable Supplies</span>
+                    <span class="pill">Annual ITC Availed & Reversed</span>
+                    <span class="pill">Table-Wise Statutory Reconciliations</span>
+                </div>
+            </div>
+            <div class="card-footer">
+                <span>Formats: <strong>Full Audit ZIP Package</strong></span>
+                <span style="color:#d97706; font-weight:700;">● Audit Ready</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer-note">
+        ReturnPilot is an independent tool by KasyHQ. 100% Client-Side In-Memory Processing.
+    </div>
+</body>
+</html>

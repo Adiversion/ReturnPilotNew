@@ -1,0 +1,1780 @@
+/**
+ * ============================================================================
+ * KasyHQ ReturnPilot - Master Webhook, MIS Automator & Spontaneous Engine (v4.2.5)
+ * Architecture: Spontaneous Event Routing, Central Schema, Single-Email Anti-Spam
+ * All Lifecycle Emails Dispatched Spontaneously in Real-Time (Zero Hourly Batch Delay)
+ * ============================================================================
+ */
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. CONFIGURATION & SCHEMA DEFINITIONS
+// ─────────────────────────────────────────────────────────────────────────────
+const CONFIG = {
+  ADMIN_SECRET_KEY: "YOUR_ADMIN_SECRET_KEY", // Cloudflare / Backend Secret
+  SENDER_NAME: "KasyHQ Support",
+  FROM_EMAIL: "support@kasyhq.com",
+  REPLY_TO: "support@kasyhq.com",
+  SHEET_TAB_NAME: "Sheet1",
+  TIMEZONE: "Asia/Kolkata",
+  TRIAL_DAYS: 7,
+  RENEWAL_NOTICE_DAYS: 3,
+  EXPIRY_WINDOW_HOURS: 120,            // 5-day grace window (up to Day 12) to receive expiry offer
+  MAX_SCRIPT_EXEC_MS: 4.5 * 60 * 1000, // 4.5 min safeguard against Apps Script timeout
+  BURST_DEDUPE_WINDOW_MS: 30 * 1000    // 30s duplicate burst filter
+};
+
+const COLUMNS = {
+  TIMESTAMP: 1,       // Col A: Timestamp (IST)
+  EMAIL: 2,           // Col B: Customer Email
+  PRODUCT: 3,         // Col C: Product
+  TERM: 4,            // Col D: Term / Duration
+  AMOUNT: 5,          // Col E: Amount
+  STATUS: 6,          // Col F: Event / License Status
+  SOURCE: 7,          // Col G: Source / Channel
+  DEVICE: 8,          // Col H: Device / OS
+  DETAILS: 9,         // Col I: Details / Metadata
+  WELCOME_STATUS: 10, // Col J: Welcome / Winback Status
+  EXPIRY_STATUS: 11,  // Col K: Trial Expiry Status
+  RENEWAL_STATUS: 12  // Col L: Paid Renewal Status
+};
+
+const TOTAL_COLUMNS = 12;
+
+const STATUS = {
+  // Survey / Feedback
+  FEEDBACK_SUBMITTED: "FEEDBACK_SUBMITTED",
+  FEEDBACK_RECORDED: "FEEDBACK_RECORDED",
+
+  // Uninstall
+  UNINSTALL_PAGE_OPENED: "UNINSTALL_PAGE_OPENED",
+  UNINSTALL_PREMIUM_USER: "UNINSTALL_PREMIUM_USER",
+  ALREADY_SENT_UNINSTALL: "ALREADY_SENT_UNINSTALL_EMAIL",
+  ANONYMOUS_NO_EMAIL: "ANONYMOUS_NO_EMAIL",
+
+  // Trials & Relogins
+  NEW_USER_TRIAL: "NEW_USER_TRIAL",
+  USER_RELOGIN: "USER_RELOGIN",
+  EXISTING_USER_RELOGIN: "EXISTING_USER_RELOGIN",
+  ALREADY_SENT_EARLIER: "ALREADY_SENT_EARLIER",
+  SKIPPED_OLD_TRIAL: "SKIPPED_OLD_TRIAL",
+  SKIPPED_HISTORICAL: "SKIPPED_HISTORICAL",
+  SKIPPED_HISTORICAL_EXPIRY: "SKIPPED_HISTORICAL_EXPIRY",
+  SKIPPED_HISTORICAL_RENEWAL: "SKIPPED_HISTORICAL_RENEWAL",
+
+  // Paid / VIP
+  PAID: "PAID",
+  CAPTURE_SUCCESS: "CAPTURE_SUCCESS",
+  GIFTED: "GIFTED",
+  PAID_USER: "PAID_USER",
+  PREMIUM_USER: "PREMIUM_USER",
+
+  // Probe & Security Protection
+  PIRACY_PROBE: "🚨 PIRACY_PROBE",
+  BLOCKED_PIRACY_PROBE: "🚨 BLOCKED_PIRACY_PROBE",
+  PRIVACY_PROBE: "🚨 PRIVACY_PROBE",
+  BLOCKED_PRIVACY_PROBE: "🚨 BLOCKED_PRIVACY_PROBE"
+};
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 2. CUSTOM MENU & TRIGGER MANAGEMENT
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('🚀 KasyHQ MIS & Marketing')
+    .addItem('📊 1. Format & Beautify MIS Dashboard', 'formatAndBeautifySheet')
+    .addItem('📈 2. Generate / Refresh Executive KPI Dashboard', 'buildExecutiveKpiDashboard')
+    .addItem('🔄 3. Sync All Firebase Users (One-Time Catchup)', 'syncAndPopulateTrials')
+    .addItem('📧 4. Send Pending Lifecycle Emails (Manual Catchup)', 'processAllLifecycleEmails')
+    .addSeparator()
+    .addItem('⏰ 5. Enable Automated Background Trigger (Hourly 24/7)', 'installHourlyTrigger')
+    .addItem('🛑 6. Remove Hourly Triggers (Enable Spontaneous Mode)', 'removeHourlyTriggers')
+    .addItem('🔍 7. Check Gmail Quota Remaining', 'checkQuota')
+    .addToUi();
+}
+
+function installHourlyTrigger() {
+  removeHourlyTriggers(); // Purge old triggers first to prevent duplicate trigger runs
+  ScriptApp.newTrigger("processAllLifecycleEmails")
+    .timeBased()
+    .everyHours(1)
+    .create();
+  if (SpreadsheetApp.getActiveSpreadsheet()) {
+    SpreadsheetApp.getActiveSpreadsheet().toast("Hourly background trigger installed! Expiry and lifecycle emails will now dispatch automatically 24/7.", "Automation Active", 6);
+  }
+}
+
+function removeHourlyTriggers() {
+  var triggers = ScriptApp.getProjectTriggers();
+  var count = 0;
+  for (var i = 0; i < triggers.length; i++) {
+    var fn = triggers[i].getHandlerFunction();
+    if (fn === "processAllLifecycleEmails" || fn === "processTrialEmails" || fn === "installHourlyTrigger") {
+      ScriptApp.deleteTrigger(triggers[i]);
+      count++;
+    }
+  }
+  SpreadsheetApp.getActiveSpreadsheet().toast("Removed " + count + " hourly background trigger(s). Spontaneous real-time email dispatch is active.", "Spontaneous Mode Active", 6);
+}
+
+function checkQuota() {
+  var remaining = MailApp.getRemainingDailyQuota();
+  var user = Session.getEffectiveUser().getEmail();
+  SpreadsheetApp.getUi().alert("Executing Account: " + user + "\nGmail/MailApp Remaining Daily Quota: " + remaining + " emails.");
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 3. REAL-TIME EVENT WEBHOOK (Instant Event Router + Anti-Spam Engine)
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+function doPost(e) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(15000);
+  } catch (err) {
+    return jsonResponse({ status: "error", message: "Server busy" });
+  }
+
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = getRawDataSheet(ss);
+
+    if (sheet.getLastRow() === 0) {
+      createStandardHeaders(sheet);
+      SpreadsheetApp.flush();
+    }
+
+    var rawBody = (e && e.postData && e.postData.contents) ? e.postData.contents : "";
+    var payload = {};
+    if (rawBody) {
+      try {
+        payload = JSON.parse(rawBody);
+      } catch (_) {
+        payload = (e && e.parameter) || {};
+      }
+    } else if (e && e.parameter) {
+      payload = e.parameter;
+    }
+
+    var now = new Date();
+    var timestampStr = formatToStandardIst(now);
+    var email = String(payload.email || (e && e.parameter && e.parameter.email) || "").trim().toLowerCase();
+    var product = payload.product || (e && e.parameter && e.parameter.product) || "ReturnPilot-GST Return Downloader";
+    var term = payload.term || (e && e.parameter && e.parameter.term) || "";
+    var rawAmount = String(payload.amount || (e && e.parameter && e.parameter.amount) || "").replace(/[^\d.]/g, "");
+    var amount = rawAmount ? parseFloat(rawAmount) : "";
+    var status = String(payload.status || (e && e.parameter && e.parameter.status) || "EVENT").toUpperCase();
+    var source = payload.source || (e && e.parameter && e.parameter.source) || "Website";
+    var device = payload.device || (e && e.parameter && e.parameter.device) || "Browser";
+    var details = payload.details || (e && e.parameter && e.parameter.details) || "";
+
+    // Error Telemetry Classification
+    var isErrorLog = status === "ERROR_LOG" || status === "CRASH_REPORT" || source.toLowerCase().includes("error") || details.toLowerCase().includes("error_stack");
+    if (isErrorLog) {
+      var cleanDetails = String(details || payload.error || "Runtime Exception").replace(/[\r\n]+/g, " | ").slice(0, 350);
+      sheet.appendRow([
+        timestampStr,
+        email || "anonymous_client",
+        product,
+        payload.returnType || payload.term || "Diagnostics",
+        "",
+        "ERROR_LOG",
+        source || "Extension Error",
+        device || (payload.v || payload.version ? "v" + (payload.v || payload.version) : "Browser"),
+        cleanDetails,
+        "LOGGED",
+        "SKIPPED",
+        "SKIPPED"
+      ]);
+      SpreadsheetApp.flush();
+      return jsonResponse({ status: "success", message: "Error log recorded" });
+    }
+
+    // Event Classification
+    var isFeedbackForm = status === STATUS.FEEDBACK_SUBMITTED || 
+                         source.toLowerCase().includes("uninstall form") || 
+                         term.toLowerCase().includes("uninstall feedback") ||
+                         details.toLowerCase().includes("reason:") ||
+                         details.toLowerCase().includes("rating:");
+
+    var isUninstallHook = !isFeedbackForm && (
+      status.includes("UNINSTALL") || 
+      source.toLowerCase().includes("uninstall") || 
+      details.toLowerCase().includes("extension removed") ||
+      term.toLowerCase().includes("extension uninstalled")
+    );
+
+    // Normalize Status
+    if (isFeedbackForm && status !== STATUS.FEEDBACK_SUBMITTED) {
+      status = STATUS.FEEDBACK_SUBMITTED;
+    } else if (isUninstallHook && !status.includes("UNINSTALL")) {
+      status = STATUS.UNINSTALL_PAGE_OPENED;
+    }
+
+    // Anti-Piracy & Build Integrity Verification
+    var rawVersion = String(payload.v || payload.version || (e && e.parameter && (e.parameter.v || e.parameter.version)) || "").trim();
+    var rawTier = String(payload.tier || (e && e.parameter && e.parameter.tier) || "").trim().toUpperCase();
+    var rawInstalledAt = String(payload.installed_at || (e && e.parameter && e.parameter.installed_at) || "").trim();
+    var isPiratedBuild = false;
+    var piracyNotes = [];
+
+    const AUTHORIZED_VERSIONS = ["4.0.0", "4.0.1", "4.0.2", "4.0.3", "4.0.4", "4.1.0", "4.1.1", "4.1.2", "4.1.3", "4.1.4", "4.1.5", "4.1.6", "4.1.7", "4.1.8", "4.1.9", "4.2.0", "4.2.1", "4.2.2", "4.2.3", "4.2.4", "4.2.5"];
+    const VALID_TIERS = ["FREE", "TRIAL", "PREMIUM", "PAID", "EARLY_BACKER", ""];
+
+    if (rawTier && !VALID_TIERS.includes(rawTier)) {
+      isPiratedBuild = true;
+      piracyNotes.push("Illegal Tier: " + rawTier);
+    }
+    if (rawVersion && !AUTHORIZED_VERSIONS.includes(rawVersion.replace(/^v/i, ""))) {
+      isPiratedBuild = true;
+      piracyNotes.push("Unauthorized/Spoofed Version: " + rawVersion);
+    }
+    if (rawInstalledAt) {
+      var cleanTsStr = rawInstalledAt.replace(/^FAKE_TS:/i, "").trim();
+      var instNum = parseInt(cleanTsStr, 10);
+      // Valid timestamps are between Jan 1 2024 (1704067200000) and Dec 31 2028 (1861833600000)
+      if (isNaN(instNum) || instNum < 1704067200000 || instNum > 1861833600000) {
+        isPiratedBuild = true;
+        piracyNotes.push("Future/Spoofed Install Timestamp Detected");
+      }
+    }
+
+    // Check for explicit Privacy Probe / Piracy Probe in status, source, term, details, or payload
+    var probeContext = (status + " " + source + " " + term + " " + details + " " + rawBody + " " + (email || "")).toUpperCase();
+    var isProbeDetected = isPiratedBuild || 
+                          probeContext.includes("PIRACY_PROBE") || 
+                          probeContext.includes("PRIVACY_PROBE") || 
+                          probeContext.includes("PRIVACY PROBE") || 
+                          probeContext.includes("PIRACY PROBE") ||
+                          probeContext.includes("SECURITY PROBE") ||
+                          probeContext.includes("TAMPERED") ||
+                          probeContext.includes("CRACKED");
+
+    // Guard against client-side false positives: If the build itself has an authorized version,
+    // valid tier, and valid install timestamp, treat it as authentic even if an outdated client hook sent PIRACY_PROBE
+    var isVerifiedAuthentic = !isPiratedBuild && rawVersion && AUTHORIZED_VERSIONS.includes(rawVersion.replace(/^v/i, "")) && VALID_TIERS.includes(rawTier);
+    if (isVerifiedAuthentic && isProbeDetected) {
+      isProbeDetected = false;
+      if (status.includes("PIRACY") || status.includes("PROBE")) {
+        status = rawTier === "PREMIUM" ? "UNINSTALL_PREMIUM_USER" : "UNINSTALL_PAGE_OPENED";
+      }
+      if (term.includes("Pirated") || term.includes("Forked")) {
+        term = rawTier === "PREMIUM" ? "Premium User Uninstalled" : "Extension Uninstalled";
+      }
+      details = details.replace(/\[⚠️ PIRACY\/FORK PROBE DETECTED:[^\]]*\]\s*\|\s*/g, "");
+      details = details.replace(/\s*\|\s*\[SUPPRESS_WINBACK:\s*Piracy Probe\]/g, "");
+    }
+
+        if (isProbeDetected) {
+      status = "🚨 PIRACY_PROBE";
+      details = (details ? details + " | " : "") + "⚠️ PROBE / TAMPERED BUILD DETECTED (" + (piracyNotes.length ? piracyNotes.join(", ") : "Probe Payload Detected") + ")";
+    }
+
+    // Reverse Identity Recovery for Anonymous Uninstalls
+    var isAnonymous = !email || email.includes("anonymous") || !email.includes("@");
+    var recoveryLog = "";
+
+    if ((isUninstallHook || isFeedbackForm) && isAnonymous) {
+      var installedAt = payload.installed_at || (e && e.parameter && e.parameter.installed_at) || extractInstalledAtFromDetails(details, rawBody);
+      var recovered = recoverEmailFromInstallTimestamp(sheet, installedAt);
+      if (recovered) {
+        email = recovered;
+        isAnonymous = false;
+        recoveryLog = " [Recovered via installed_at: " + recovered + "]";
+        details = (details ? details + " | " : "") + "IDENTITY_RECOVERED: " + recovered;
+      }
+      if (isAnonymous && rawBody) {
+        details = (details ? details + " | " : "") + "RAW_PAYLOAD: " + rawBody.substring(0, 300);
+      }
+    }
+
+    if (!email) {
+      email = "anonymous-uninstall@kasyhq.com";
+      isAnonymous = true;
+    }
+
+    // Fast Deduplication Guard: Drop duplicate event bursts within 30 seconds
+    var lastRow = sheet.getLastRow();
+    if (lastRow >= 2 && !isAnonymous) {
+      var scanLimit = Math.min(25, lastRow - 1);
+      var recentData = sheet.getRange(Math.max(2, lastRow - scanLimit + 1), 1, scanLimit, TOTAL_COLUMNS).getValues();
+      for (var r = recentData.length - 1; r >= 0; r--) {
+        var prevTime = parseAnyTimestamp(recentData[r][COLUMNS.TIMESTAMP - 1]);
+        var prevEmail = String(recentData[r][COLUMNS.EMAIL - 1] || "").trim().toLowerCase();
+        var prevStatus = String(recentData[r][COLUMNS.STATUS - 1] || "").toUpperCase();
+
+        if (prevEmail === email && prevStatus === status && prevTime && (Math.abs(now.getTime() - prevTime.getTime()) < CONFIG.BURST_DEDUPE_WINDOW_MS)) {
+          return jsonResponse({ status: "skipped_duplicate_event", email: email });
+        }
+      }
+    }
+
+    // Process Event via Modular Handlers
+    var welcomeCol = "";
+    var expiryCol = "";
+    var renewalCol = "";
+
+    if (isProbeDetected) {
+      welcomeCol = "🚨 BLOCKED_PIRACY_PROBE";
+      expiryCol = "BLOCKED";
+      renewalCol = "BLOCKED";
+    } else if (isFeedbackForm) {
+      welcomeCol = STATUS.FEEDBACK_RECORDED;
+    } else if (isUninstallHook) {
+      if (isAnonymous) {
+        // Suppress logging of anonymous uninstall page opens to the sheet
+        return jsonResponse({ 
+          status: "skipped_anonymous_uninstall", 
+          message: "Anonymous uninstall page open not logged" 
+        });
+      } else {
+        var isPaidSubscriber = isUserPaidInSheet(sheet, email);
+        var alreadySentUninstall = hasUninstallEmailBeenSent(sheet, email);
+
+        if (alreadySentUninstall) {
+          welcomeCol = STATUS.ALREADY_SENT_UNINSTALL;
+        } else {
+          welcomeCol = isPaidSubscriber ? sendPaidUninstallGuideEmail(email) : sendUninstallWinbackEmail(email);
+        }
+      }
+    } else {
+      var isExisting = isUserRegisteredInSheet(sheet, email);
+      var alreadySentWelcome = hasWelcomeEmailBeenSent(sheet, email);
+      var alreadySentExpiry = hasExpiryEmailBeenSent(sheet, email);
+      var isPaidSubscriber = isUserPaidInSheet(sheet, email);
+
+      if (status === STATUS.NEW_USER_TRIAL) {
+        if (isExisting || alreadySentWelcome) {
+          status = STATUS.USER_RELOGIN;
+          welcomeCol = STATUS.EXISTING_USER_RELOGIN;
+          details = (details ? details + " | " : "") + "Returning user login (Original trial start date preserved)";
+
+          // Spontaneous Expiry Check: If user trial expired (> 7 days), dispatch expiry email spontaneously
+          if (!alreadySentExpiry && !isPaidSubscriber && !isAnonymous) {
+            var origDate = getUserOriginalRegistrationDate(sheet, email);
+            if (origDate) {
+              var daysSinceStart = (now.getTime() - origDate.getTime()) / (1000 * 60 * 60 * 24);
+              if (daysSinceStart >= CONFIG.TRIAL_DAYS) {
+                expiryCol = sendTrialExpiryEmail(email);
+                updateUserExpiryStatusInSheet(sheet, email, expiryCol);
+              }
+            }
+          }
+        } else if (!isAnonymous) {
+          // Spontaneous Welcome Email: Sent immediately in real-time
+          welcomeCol = sendWelcomeTrialEmail(email);
+        }
+      } else if (status === STATUS.USER_RELOGIN) {
+        welcomeCol = STATUS.EXISTING_USER_RELOGIN;
+        // Spontaneous Expiry Check on returning login
+        if (!alreadySentExpiry && !isPaidSubscriber && !isAnonymous) {
+          var origDate = getUserOriginalRegistrationDate(sheet, email);
+          if (origDate) {
+            var daysSinceStart = (now.getTime() - origDate.getTime()) / (1000 * 60 * 60 * 24);
+            if (daysSinceStart >= CONFIG.TRIAL_DAYS) {
+              expiryCol = sendTrialExpiryEmail(email);
+              updateUserExpiryStatusInSheet(sheet, email, expiryCol);
+            }
+          }
+        }
+      } else if (status.includes("EXPIRY") || status.includes("TRIAL_EXPIRED") || status.includes("EXPIRED")) {
+        // Spontaneous Trial Expiry Notification: Update existing user row without appending duplicates
+        if (alreadySentExpiry || isPaidSubscriber || isAnonymous) {
+          return jsonResponse({ status: "skipped_already_handled", email: email });
+        }
+        expiryCol = sendTrialExpiryEmail(email);
+        updateUserExpiryStatusInSheet(sheet, email, expiryCol);
+        return jsonResponse({ status: "success", email: email, action: expiryCol });
+      } else if (status === STATUS.PAID || status === STATUS.CAPTURE_SUCCESS || status === STATUS.GIFTED) {
+        welcomeCol = STATUS.PAID_USER;
+        expiryCol = STATUS.PAID_USER;
+      }
+    }
+
+    var newRow = [timestampStr, email, product, term, amount, status, source, device, details, welcomeCol, expiryCol, renewalCol];
+    sheet.appendRow(newRow);
+    SpreadsheetApp.flush();
+
+    // Opportunistic Spontaneous Sweep: Dispatches up to 3 pending Day 7 trial expiries on every event
+    try {
+      sweepPendingExpiredTrials(sheet, 3);
+    } catch (_) {}
+
+    return jsonResponse({ 
+      status: "success", 
+      email: email, 
+      action: welcomeCol,
+      expiryAction: expiryCol,
+      recovered: !!recoveryLog 
+    });
+
+  } catch (error) {
+    return jsonResponse({ status: "error", message: error.toString() });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function doGet(e) {
+  return jsonResponse({ status: "ok", service: "KasyHQ MIS Webhook & Spontaneous Lifecycle Automator Active (v4.2.5)" });
+}
+
+function jsonResponse(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 4. REVERSE IDENTITY RECOVERY (Strict & Safe Bounds)
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+function recoverEmailFromInstallTimestamp(sheet, installedAtInput) {
+  if (!installedAtInput) return null;
+  try {
+    var installMillis = parseInt(installedAtInput, 10);
+    if (isNaN(installMillis)) return null;
+    if (installMillis < 10000000000) {
+      installMillis = installMillis * 1000;
+    }
+    if (installMillis < 1000000000000) return null;
+    
+    // Bounds check: Between Year 2020 and today + 1 day
+    var nowMs = new Date().getTime();
+    if (installMillis < 1577836800000 || installMillis > (nowMs + 86400000)) return null;
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return null;
+
+    var data = sheet.getRange(2, 1, lastRow - 1, 9).getValues();
+
+    // Pass 1: Strict match for exact installed_at in Details column
+    var targetStr = "installed_at:" + installMillis;
+    var targetStrRaw = String(installMillis);
+
+    for (var i = data.length - 1; i >= 0; i--) {
+      var rowEmail = String(data[i][COLUMNS.EMAIL - 1] || "").trim().toLowerCase();
+      var rowDetails = String(data[i][COLUMNS.DETAILS - 1] || "");
+      if (rowEmail && rowEmail.includes("@") && !rowEmail.includes("anonymous")) {
+        if (rowDetails.includes(targetStr) || (rowDetails.includes("installed_at") && rowDetails.includes(targetStrRaw))) {
+          return rowEmail;
+        }
+      }
+    }
+
+    // Pass 2: Strict match against registration timestamp (within 2-minute window)
+    var installDate = new Date(installMillis);
+    var closestEmail = null;
+    var smallestDiff = Infinity;
+
+    for (var j = data.length - 1; j >= 0; j--) {
+      var rowTime = parseAnyTimestamp(data[j][COLUMNS.TIMESTAMP - 1]);
+      var rowEm = String(data[j][COLUMNS.EMAIL - 1] || "").trim().toLowerCase();
+      var rowStatus = String(data[j][COLUMNS.STATUS - 1] || "").toUpperCase();
+
+      if (rowTime && rowEm && rowEm.includes("@") && !rowEm.includes("anonymous")) {
+        if (rowStatus.includes("TRIAL") || rowStatus === STATUS.NEW_USER_TRIAL || rowStatus.includes("PAID") || rowStatus === STATUS.GIFTED) {
+          var diff = Math.abs(rowTime.getTime() - installDate.getTime());
+          if (diff <= 120000 && diff < smallestDiff) { // <= 120 seconds
+            smallestDiff = diff;
+            closestEmail = rowEm;
+          }
+        }
+      }
+    }
+    return closestEmail;
+  } catch (_) {
+    return null;
+  }
+}
+
+function extractInstalledAtFromDetails(detailsStr, rawBodyStr) {
+  try {
+    var combined = (detailsStr || "") + " " + (rawBodyStr || "");
+    var match = combined.match(/installed_at[=:]\s*["']?(\d{10,14})["']?/i);
+    if (match && match[1]) return match[1];
+    var jsonMatch = combined.match(/"installed_at"\s*:\s*"?(\d{10,14})"?/i);
+    if (jsonMatch && jsonMatch[1]) return jsonMatch[1];
+  } catch (_) {}
+  return null;
+}
+ 
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 4.5 SPONTANEOUS OPPORTUNISTIC EXPIRY SWEEPER (100% Triggerless)
+ * Automatically called by doPost(e) on every incoming event.
+ * Dispatches up to maxToSend expired trial emails spontaneously in real-time.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+function sweepPendingExpiredTrials(sheet, maxToSend) {
+  if (!sheet) return 0;
+  var limit = maxToSend || 3;
+  var quota = MailApp.getRemainingDailyQuota();
+  if (quota <= 0) return 0;
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+
+  var data = sheet.getRange(2, 1, lastRow - 1, TOTAL_COLUMNS).getValues();
+  var now = new Date();
+  var sent = 0;
+
+  var paidMap = {};
+  var expirySentMap = {};
+  var probeMap = {};
+
+  for (var k = 0; k < data.length; k++) {
+    var em = String(data[k][COLUMNS.EMAIL - 1] || "").trim().toLowerCase();
+    if (!em || !em.includes("@") || em.includes("anonymous")) continue;
+    var st = String(data[k][COLUMNS.STATUS - 1] || "").toUpperCase();
+    var amt = String(data[k][COLUMNS.AMOUNT - 1] || "").replace(/[^\d]/g, "");
+    var exp = String(data[k][COLUMNS.EXPIRY_STATUS - 1] || "").toUpperCase();
+
+    if (st === STATUS.PAID || st === STATUS.CAPTURE_SUCCESS || st === STATUS.GIFTED || parseInt(amt, 10) > 0) {
+      paidMap[em] = true;
+    }
+    if (exp.includes("SENT_EXPIRY") || exp.includes("ALREADY") || exp === STATUS.PAID_USER || exp.includes("SKIPPED")) {
+      expirySentMap[em] = true;
+    }
+    if (st.includes("PROBE") || st.includes("PIRACY")) {
+      probeMap[em] = true;
+    }
+  }
+
+  for (var i = 0; i < data.length && sent < limit && quota > 0; i++) {
+    var email = String(data[i][COLUMNS.EMAIL - 1] || "").trim().toLowerCase();
+    if (!email || !email.includes("@") || email.includes("anonymous")) continue;
+    if (paidMap[email] || expirySentMap[email] || probeMap[email]) continue;
+
+    var status = String(data[i][COLUMNS.STATUS - 1] || "").toUpperCase();
+    var isTrialRow = status === STATUS.NEW_USER_TRIAL || status.includes("TRIAL") || status === STATUS.USER_RELOGIN;
+    if (!isTrialRow) continue;
+
+    var rawTs = data[i][COLUMNS.TIMESTAMP - 1];
+    var parsed = parseAnyTimestamp(rawTs);
+    if (!parsed) continue;
+
+    var expiryDate = new Date(parsed.getTime() + (CONFIG.TRIAL_DAYS * 24 * 60 * 60 * 1000));
+    if (now >= expiryDate) {
+      var hoursSinceExpiry = (now.getTime() - expiryDate.getTime()) / (1000 * 60 * 60);
+      var maxHours = CONFIG.EXPIRY_WINDOW_HOURS || 120; // 5 days
+      var resStatus = "";
+
+      if (hoursSinceExpiry <= maxHours) {
+        resStatus = sendTrialExpiryEmail(email);
+        if (String(resStatus).startsWith("SENT_EXPIRY")) {
+          sent++;
+          quota--;
+        }
+      } else {
+        resStatus = STATUS.SKIPPED_HISTORICAL_EXPIRY;
+      }
+
+      sheet.getRange(i + 2, COLUMNS.EXPIRY_STATUS).setValue(resStatus);
+      expirySentMap[email] = true;
+    }
+  }
+
+  return sent;
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 5. MANUAL LIFECYCLE SWEEP & CATCHUP ENGINE (No Background Triggers Required)
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+function processTrialEmails() {
+  processAllLifecycleEmails();
+}
+
+function processAllLifecycleEmails() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = getRawDataSheet(ss);
+  if (!sheet || sheet.getLastRow() < 2) return;
+
+  var remainingQuota = MailApp.getRemainingDailyQuota();
+  if (remainingQuota <= 0) {
+    SpreadsheetApp.getActiveSpreadsheet().toast("Gmail daily quota exhausted (0 remaining). Aborting run.", "Quota Exhausted", 6);
+    return;
+  }
+
+  var startTime = new Date().getTime();
+  var lastRow = sheet.getLastRow();
+  var totalRows = lastRow - 1;
+  var data = sheet.getRange(2, 1, totalRows, TOTAL_COLUMNS).getValues();
+  var now = new Date();
+
+  var statusUpdates = [];
+  var sentCount = 0;
+
+  // 1. Build in-memory lookup maps to guarantee 1-email limit
+  var trulySentWelcomeEmails = {};
+  var trulySentUninstallEmails = {};
+  var paidEmailsMap = {};
+  var blockedProbeEmails = {};
+
+  for (var k = 0; k < totalRows; k++) {
+    var kEmail = String(data[k][COLUMNS.EMAIL - 1] || "").trim().toLowerCase();
+    var kStatus = String(data[k][COLUMNS.STATUS - 1] || "").toUpperCase();
+    var kDetails = String(data[k][COLUMNS.DETAILS - 1] || "").toUpperCase();
+    var kAmount = String(data[k][COLUMNS.AMOUNT - 1] || "").replace(/[^\d]/g, "");
+    var kWel = String(data[k][COLUMNS.WELCOME_STATUS - 1] || "").trim().toUpperCase();
+
+    if (kEmail && !kEmail.includes("anonymous") && kEmail.includes("@")) {
+      var isPaidEvent = kStatus === STATUS.PAID || kStatus === STATUS.CAPTURE_SUCCESS || kStatus === STATUS.GIFTED || parseInt(kAmount, 10) > 0;
+      var isNotTrialUninstall = !kStatus.includes("UNINSTALL") && !kStatus.includes("TRIAL") && kStatus !== "ORDER_CREATED";
+      if (isPaidEvent && isNotTrialUninstall) {
+        paidEmailsMap[kEmail] = true;
+      }
+
+      var isRowProbe = !isPaidEvent && (
+        kStatus.includes("PROBE") || kStatus.includes("PIRACY") || kStatus.includes("PRIVACY") ||
+        kWel.includes("PROBE") || (kWel.includes("BLOCKED") && !kWel.includes("PAID")) || 
+        kDetails.includes("PROBE") || kDetails.includes("TAMPERED") || kDetails.includes("CRACKED")
+      );
+      if (isRowProbe) {
+        blockedProbeEmails[kEmail] = true;
+      }
+      if (isWelcomeSentStatus(kWel)) trulySentWelcomeEmails[kEmail] = true;
+      if (kWel.includes("WINBACK") || kWel.includes("GUIDE") || kWel.includes("ALREADY_SENT_UNINSTALL")) {
+        trulySentUninstallEmails[kEmail] = true;
+      }
+    }
+  }
+
+  // 2. Process rows
+  for (var i = 0; i < totalRows; i++) {
+    // Timeout safeguard (exit gracefully if approaching 4.5 minutes)
+    if (new Date().getTime() - startTime > CONFIG.MAX_SCRIPT_EXEC_MS) {
+      break;
+    }
+
+    var rawTimestamp = data[i][COLUMNS.TIMESTAMP - 1];
+    var email = String(data[i][COLUMNS.EMAIL - 1] || "").trim().toLowerCase();
+    var term = String(data[i][COLUMNS.TERM - 1] || "").toUpperCase();
+    var status = String(data[i][COLUMNS.STATUS - 1] || "").toUpperCase();
+    var source = String(data[i][COLUMNS.SOURCE - 1] || "").toUpperCase();
+    var details = String(data[i][COLUMNS.DETAILS - 1] || "").toUpperCase();
+    
+    var welcomeSent = String(data[i][COLUMNS.WELCOME_STATUS - 1] || "").trim();
+    var expirySent = String(data[i][COLUMNS.EXPIRY_STATUS - 1] || "").trim();
+    var renewalSent = String(data[i][COLUMNS.RENEWAL_STATUS - 1] || "").trim();
+
+    if (remainingQuota <= 0 || !email || !email.includes("@") || email.includes("anonymous")) {
+      statusUpdates.push([welcomeSent, expirySent, renewalSent]);
+      continue;
+    }
+
+    // FLOW 0: PROBE & PIRACY SAFEGUARD (NEVER SENDS ANY AUTOMATIC EMAILS)
+    var isProbeRow = status.includes("PROBE") || status.includes("PIRACY") || status.includes("PRIVACY") ||
+                     details.includes("PROBE") || details.includes("TAMPERED") || details.includes("CRACKED") ||
+                     welcomeSent.includes("PROBE") || welcomeSent.includes("BLOCKED") ||
+                     blockedProbeEmails[email] === true;
+
+    if (isProbeRow) {
+      if (!welcomeSent || !welcomeSent.includes("BLOCKED")) welcomeSent = "🚨 BLOCKED_PIRACY_PROBE";
+      if (!expirySent || expirySent === "") expirySent = "BLOCKED";
+      if (!renewalSent || renewalSent === "") renewalSent = "BLOCKED";
+      statusUpdates.push([welcomeSent, expirySent, renewalSent]);
+      continue;
+    }
+
+    var isUserPaid = paidEmailsMap[email] === true;
+
+    // FLOW A: FEEDBACK ROWS (SURVEY ONLY — NEVER SENDS EMAIL)
+    var isFeedbackRow = status === STATUS.FEEDBACK_SUBMITTED || source.includes("FORM") || term.includes("FEEDBACK") || details.includes("REASON:");
+    if (isFeedbackRow) {
+      if (!welcomeSent) welcomeSent = STATUS.FEEDBACK_RECORDED;
+      statusUpdates.push([welcomeSent, expirySent, renewalSent]);
+      continue;
+    }
+
+    // FLOW B: UNINSTALL ROWS
+    var isUninstallRow = status.includes("UNINSTALL") || details.includes("EXTENSION REMOVED") || details.includes("UNINSTALLED") || term.includes("UNINSTALL");
+    if (isUninstallRow) {
+      if (!isWelcomeSentStatus(welcomeSent)) {
+        if (trulySentUninstallEmails[email]) {
+          welcomeSent = STATUS.ALREADY_SENT_UNINSTALL;
+        } else {
+          welcomeSent = isUserPaid ? sendPaidUninstallGuideEmail(email) : sendUninstallWinbackEmail(email);
+          if (welcomeSent.includes("SENT")) { 
+            sentCount++; 
+            remainingQuota--; 
+            trulySentUninstallEmails[email] = true; 
+          }
+        }
+      }
+      statusUpdates.push([welcomeSent, expirySent, renewalSent]);
+      continue;
+    }
+
+    var parsedDate = parseAnyTimestamp(rawTimestamp);
+
+    // FLOW C: TRIAL LIFECYCLE (Day 0 Welcome Catchup & Day 7 Expiry)
+    if (!isUserPaid && (status.includes("TRIAL") || term.includes("TRIAL") || status === STATUS.NEW_USER_TRIAL || status === STATUS.USER_RELOGIN)) {
+      var ageHours = parsedDate ? (now.getTime() - parsedDate.getTime()) / (1000 * 60 * 60) : 0;
+
+      // Welcome Email Catchup
+      if (!isWelcomeSentStatus(welcomeSent)) {
+        if (trulySentWelcomeEmails[email]) {
+          welcomeSent = STATUS.ALREADY_SENT_EARLIER;
+        } else if (parsedDate && ageHours > 72) {
+          welcomeSent = STATUS.SKIPPED_OLD_TRIAL;
+          trulySentWelcomeEmails[email] = true;
+        } else if (remainingQuota > 0) {
+          welcomeSent = sendWelcomeTrialEmail(email);
+          if (welcomeSent.startsWith("SENT_WELCOME")) {
+            trulySentWelcomeEmails[email] = true;
+            sentCount++;
+            remainingQuota--;
+          }
+        }
+      }
+
+      // Day 7 Trial Expiry Email
+      var hasExpiryBeenSent = expirySent.startsWith("SENT_EXPIRY") || expirySent === STATUS.PAID_USER || expirySent === STATUS.SKIPPED_HISTORICAL;
+      if (!hasExpiryBeenSent && parsedDate && remainingQuota > 0) {
+        var trialExpiryDate = new Date(parsedDate.getTime() + (CONFIG.TRIAL_DAYS * 24 * 60 * 60 * 1000));
+        var hoursSinceExpiry = (now.getTime() - trialExpiryDate.getTime()) / (1000 * 60 * 60);
+
+        if (now >= trialExpiryDate) {
+          var maxExpiryHours = CONFIG.EXPIRY_WINDOW_HOURS || 120;
+          if (hoursSinceExpiry <= maxExpiryHours) {
+            expirySent = sendTrialExpiryEmail(email);
+            if (expirySent.startsWith("SENT_EXPIRY")) { sentCount++; remainingQuota--; }
+          } else {
+            expirySent = STATUS.SKIPPED_HISTORICAL_EXPIRY;
+          }
+        }
+      }
+    }
+
+    // FLOW D: PAID / VIP RENEWALS (3-Day Warning & Day-Of Expiry)
+    if (isUserPaid && (status === STATUS.PAID || status === STATUS.CAPTURE_SUCCESS || status === STATUS.GIFTED || 
+        ((term.includes("MONTH") || term.includes("YEAR") || term.includes("QUARTER")) && !term.includes("TRIAL")))) {
+      if (!welcomeSent) welcomeSent = STATUS.PAID_USER;
+      if (!expirySent) expirySent = STATUS.PAID_USER;
+
+      if (parsedDate && remainingQuota > 0) {
+        var durationDays = 30;
+        if (term.includes("YEAR") || term.includes("ANNUAL") || term.includes("365")) {
+          durationDays = 365;
+        } else if (term.includes("QUARTER") || term.includes("3 MONTH") || term.includes("90") || term.includes("399")) {
+          durationDays = 90;
+        }
+
+        var paidExpiryDate = new Date(parsedDate.getTime() + (durationDays * 24 * 60 * 60 * 1000));
+        var daysUntilExpiry = (paidExpiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+        var hasRenewalBeenSent = renewalSent.startsWith("SENT_RENEWAL") || renewalSent.startsWith("SENT_EXPIRED") || renewalSent.includes("EXPIRED");
+
+        if (!hasRenewalBeenSent && daysUntilExpiry <= CONFIG.RENEWAL_NOTICE_DAYS && daysUntilExpiry > 0) {
+          renewalSent = sendPaidRenewalWarningEmail(email, daysUntilExpiry, paidExpiryDate);
+          if (renewalSent.startsWith("SENT_RENEWAL")) { sentCount++; remainingQuota--; }
+        } else if (now >= paidExpiryDate && !hasRenewalBeenSent) {
+          var hoursSincePaidExpiry = (now.getTime() - paidExpiryDate.getTime()) / (1000 * 60 * 60);
+          if (hoursSincePaidExpiry <= 72) {
+            renewalSent = sendPaidExpiredEmail(email, paidExpiryDate);
+            if (renewalSent.startsWith("SENT_EXPIRED")) { sentCount++; remainingQuota--; }
+          } else {
+            renewalSent = STATUS.SKIPPED_HISTORICAL_RENEWAL;
+          }
+        }
+      }
+    }
+
+    statusUpdates.push([welcomeSent, expirySent, renewalSent]);
+  }
+
+  if (statusUpdates.length > 0) {
+    sheet.getRange(2, COLUMNS.WELCOME_STATUS, statusUpdates.length, 3).setValues(statusUpdates);
+    SpreadsheetApp.flush();
+  }
+
+  SpreadsheetApp.getActiveSpreadsheet().toast("Lifecycle complete. Sent " + sentCount + " emails. Quota remaining: " + remainingQuota, "Complete", 5);
+}
+
+function isWelcomeSentStatus(statusStr) {
+  if (!statusStr) return false;
+  var s = String(statusStr).trim().toUpperCase();
+  return s.startsWith("SENT") || 
+         s.startsWith("WELCOME") || 
+         s.startsWith("GUIDE") || 
+         s.startsWith("WINBACK") || 
+         s.startsWith("ALREADY") || 
+         s.startsWith("SKIPPED") ||
+         s.startsWith("FEEDBACK") ||
+         s.includes("BLOCKED") ||
+         s.includes("PROBE") ||
+         s === STATUS.PAID_USER || 
+         s === STATUS.PREMIUM_USER;
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 6. MODULAR HTML EMAIL TEMPLATE BUILDER & SENDERS
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+function renderEmailLayout(params) {
+  var badgeHtml = params.badgeText ? `
+    <div style="text-align: center; margin-bottom: 20px;">
+      <span style="background-color: ${params.badgeBg || '#ecfdf5'}; color: ${params.badgeColor || '#047857'}; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; padding: 6px 14px; border-radius: 20px; border: 1px solid ${params.badgeBorder || '#a7f3d0'}; display: inline-block;">
+        ${params.badgeText}
+      </span>
+      <h2 style="color: #0f172a; margin: 14px 0 6px 0; font-size: 24px; font-weight: 800;">${params.title}</h2>
+      ${params.subtitle ? `<p style="color: #64748b; font-size: 14px; margin: 0;">${params.subtitle}</p>` : ''}
+    </div>
+  ` : `
+    <h2 style="color: #0f172a; margin-top: 0; font-size: 22px; font-weight: 800;">${params.title}</h2>
+  `;
+
+  var ctaHtml = params.ctaText && params.ctaUrl ? `
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${params.ctaUrl}" style="background-color: ${params.ctaBg || '#0f172a'}; color: #ffffff; padding: 14px 30px; text-decoration: none; border-radius: 12px; font-weight: 800; font-size: 14px; display: inline-block; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);">
+        ${params.ctaText}
+      </a>
+    </div>
+  ` : '';
+
+  var secondaryHtml = params.secondaryHtml ? `
+    <div style="text-align: center; font-size: 12px; color: #64748b; margin-top: 8px;">
+      ${params.secondaryHtml}
+    </div>
+  ` : '';
+
+  return `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #0f172a; line-height: 1.6; border: 1px solid #e2e8f0; border-radius: 18px; background-color: #ffffff;">
+      ${badgeHtml}
+      ${params.bodyHtml}
+      ${ctaHtml}
+      ${secondaryHtml}
+      <p style="font-size: 12px; color: #64748b; margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 12px;">
+        ${params.footerNote || 'Have questions or need assistance during deadline downloads? Simply reply directly to this email.'}<br>
+        &mdash; <strong>Team KasyHQ Support</strong> (<a href="mailto:${CONFIG.REPLY_TO}" style="color: #0f172a; font-weight: 600;">${CONFIG.REPLY_TO}</a>)
+      </p>
+    </div>
+  `;
+}
+
+function dispatchEmail(email, subject, html) {
+  if (!email || !email.includes("@") || email.includes("anonymous")) return "SKIPPED_ANONYMOUS";
+  var cleanEm = String(email).trim().toLowerCase();
+  if (cleanEm.includes("probe") || cleanEm.includes("piracy") || cleanEm.includes("privacy_probe") || cleanEm.includes("piracy_probe")) {
+    return "SKIPPED_PROBE_BLOCKED";
+  }
+
+  // Production Account Guard: Strictly block email dispatch if executing under legacy personal account
+  var executingUser = Session.getEffectiveUser().getEmail().toLowerCase();
+  if (executingUser && executingUser !== CONFIG.FROM_EMAIL.toLowerCase()) {
+    Logger.log("Blocked email dispatch: Script executing under non-production account (" + executingUser + "). Only " + CONFIG.FROM_EMAIL + " is authorized to send emails.");
+    return "BLOCKED_NON_PRODUCTION_ACCOUNT: " + executingUser;
+  }
+
+  try {
+    GmailApp.sendEmail(cleanEm, subject, "", {
+      name: CONFIG.SENDER_NAME,
+      from: CONFIG.FROM_EMAIL,
+      replyTo: CONFIG.REPLY_TO,
+      htmlBody: html
+    });
+    return true;
+  } catch (e) {
+    return e.toString();
+  }
+}
+
+// 1. Welcome Trial Email
+function sendWelcomeTrialEmail(email) {
+  var subject = "Welcome to ReturnPilot! Your 7-Day Full Access Trial is Active";
+  var bodyHtml = `
+    <p style="font-size: 14px; color: #334155;">
+      Hi there,<br><br>
+      Your <strong>7-Day Full Access Trial</strong> is active, giving your account unrestricted access to all ReturnPilot GST Premium capabilities designed to eliminate portal lag, manual downloads, and session timeouts:
+    </p>
+    <div style="background-color: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 14px; padding: 18px; margin: 20px 0;">
+      <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 800; color: #0f172a; text-transform: uppercase;">
+        &#9889; What's Unlocked in Your Trial:
+      </p>
+      <div style="margin-bottom: 10px;">
+        <strong style="color: #047857; font-size: 14px;">&#10003; 1-Click PDF & Excel (Official GST Version) Download</strong>
+        <div style="font-size: 12.5px; color: #475569;">Instant bulk download of official GST portal version PDF and Excel for all returns (GSTR-1, 3B, 2B, 1A, 4, 9, 9C & IMS Inward).</div>
+      </div>
+      <div style="margin-bottom: 10px;">
+        <strong style="color: #047857; font-size: 14px;">&#10003; 1-Click Custom Month & Year Invoice-Wise Sales & Purchase Excel</strong>
+        <div style="font-size: 12.5px; color: #475569;">Export consolidated invoice-wise Sales (GSTR-1) and Purchase (GSTR-2B) Excel workbooks across custom month ranges or entire financial years.</div>
+      </div>
+      <div style="margin-bottom: 10px;">
+        <strong style="color: #047857; font-size: 14px;">&#10003; Notice Radar for Live Notices Updates</strong>
+        <div style="font-size: 12.5px; color: #475569;">Live tracking and instant radar alerts for GST portal notices and demand orders across your client accounts.</div>
+      </div>
+      <div style="margin-bottom: 10px;">
+        <strong style="color: #047857; font-size: 14px;">&#10003; 1-Click Cash & Credit Ledger Download</strong>
+        <div style="font-size: 12.5px; color: #475569;">Directly export official Cash Ledger and Electronic Credit Ledger statements into audit-ready Excel.</div>
+      </div>
+      <div style="margin-bottom: 10px;">
+        <strong style="color: #047857; font-size: 14px;">&#10003; AI Captcha Auto-Fill & Saved Credentials for 1-Click Full Login</strong>
+        <div style="font-size: 12.5px; color: #475569;">Securely save client login credentials with local encryption &mdash; AI solves captchas instantly for 1-click full login without typing anything manually.</div>
+      </div>
+      <div>
+        <strong style="color: #047857; font-size: 14px;">&#10003; Continuous Enhancements & More to Come</strong>
+        <div style="font-size: 12.5px; color: #475569;">Ongoing updates for new portal schemas, statutory rules, and upcoming productivity features built for tax professionals.</div>
+      </div>
+    </div>
+  `;
+
+  var html = renderEmailLayout({
+    badgeText: "&#10003; 7-Day Premium Trial Active",
+    badgeBg: "#ecfdf5",
+    badgeColor: "#047857",
+    badgeBorder: "#a7f3d0",
+    title: "Welcome to ReturnPilot!",
+    subtitle: "Your tax practice workflow just got 10x faster.",
+    bodyHtml: bodyHtml,
+    ctaText: "Open GST Portal & Start Downloading &rarr;",
+    ctaUrl: "https://services.gst.gov.in/services/login",
+    ctaBg: "#0f172a"
+  });
+
+  var res = dispatchEmail(email, subject, html);
+  return res === true ? "SENT_WELCOME: " + formatToShortDate(new Date()) : "FAILED_WELCOME: " + res;
+}
+
+// 2. Day 7 Trial Expiry Email
+function sendTrialExpiryEmail(email) {
+  var subject = "Your 7-Day ReturnPilot Trial Has Ended — Keep Downloading Friction-Free";
+  var bodyHtml = `
+    <p style="font-size: 14px; color: #334155;">Your 7-day full access trial for <strong>ReturnPilot GST Return Downloader</strong> concluded today.</p>
+    <p style="font-size: 14px; color: #334155;">Keep your practice running at full speed without captcha delays and manual downloads:</p>
+    <div style="background-color: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 14px; padding: 14px 18px; margin: 16px 0;">
+      <ul style="margin: 0; padding-left: 18px; color: #334155; font-size: 12.5px; line-height: 1.8;">
+        <li><strong>1-Click PDF & Excel (Official GST Version) Downloads:</strong> Bulk exports for GSTR-1, 3B, 2B, 1A, 4, 9, 9C & IMS Inward.</li>
+        <li><strong>1-Click Custom Month & Year Invoice-Wise Sales & Purchase Excel:</strong> Multi-month & financial year consolidated workbooks.</li>
+        <li><strong>Notice Radar:</strong> Live real-time updates and tracking for GST notices and orders across client accounts.</li>
+        <li><strong>1-Click Cash & Credit Ledger Downloads:</strong> Direct statement exports into audit-ready Excel sheets.</li>
+        <li><strong>AI Captcha Auto-Fill & Saved Credentials:</strong> 1-click full auto-login without typing anything manually.</li>
+        <li><strong>Continuous Enhancements:</strong> Ongoing government portal compatibility and more features to come.</li>
+      </ul>
+    </div>
+    <div style="background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%); border: 2px solid #059669; border-radius: 16px; padding: 18px; margin: 20px 0;">
+      <span style="background-color: #059669; color: #ffffff; font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 4px 10px; border-radius: 12px; display: inline-block; margin-bottom: 8px;">
+        &#9733; Most Popular for CA Practices
+      </span>
+      <h3 style="margin: 0 0 6px 0; color: #065f46; font-size: 18px; font-weight: 800;">3-Month Pass: &#8377;399 (Save 33%)</h3>
+      <p style="margin: 0 0 12px 0; color: #047857; font-size: 13.5px; font-weight: 600;">
+        Just &#8377;133/month &mdash; No recurring auto-debit friction. Pay once via UPI.
+      </p>
+      <div style="background-color: #ffffff; border: 1.5px dashed #059669; border-radius: 10px; padding: 10px 14px; display: inline-block;">
+        <span style="font-size: 11.5px; font-weight: 700; color: #065f46;">Special CA Practice Coupon:</span>
+        <span style="font-family: monospace; font-size: 14px; font-weight: 800; color: #047857; background: #ecfdf5; padding: 3px 8px; border-radius: 6px; border: 1px solid #a7f3d0; margin-left: 6px;">SAVE30</span>
+        <span style="font-size: 11.5px; color: #065f46; margin-left: 6px;">(30% OFF Today)</span>
+      </div>
+    </div>
+  `;
+
+  var html = renderEmailLayout({
+    title: "Hi there,",
+    bodyHtml: bodyHtml,
+    ctaText: "Claim 3-Month Pass with SAVE30 &rarr;",
+    ctaUrl: "https://kasyhq.com/checkout?plan=gst-quarterly&coupon=SAVE30",
+    ctaBg: "#047857",
+    secondaryHtml: `Other plans: <strong>&#8377;139 / 1 Month</strong> (with SAVE30) or <strong>&#8377;1,999 / 1 Year</strong> at <a href="https://kasyhq.com/checkout" style="color: #0f172a; font-weight: 600;">kasyhq.com/checkout</a>`
+  });
+
+  var res = dispatchEmail(email, subject, html);
+  return res === true ? "SENT_EXPIRY: " + formatToShortDate(new Date()) : "FAILED_EXPIRY: " + res;
+}
+
+// 3. Paid License 3-Day Renewal Warning
+function sendPaidRenewalWarningEmail(email, daysLeft, expiryDate) {
+  var subject = "Notice: Your ReturnPilot Premium License expires in " + Math.ceil(daysLeft) + " days";
+  var bodyHtml = `
+    <p style="font-size: 14px; color: #334155;">
+      Hi there,<br><br>
+      Your <strong>ReturnPilot GST Premium License</strong> is scheduled to expire on <strong>${formatToShortDate(expiryDate)}</strong>.
+    </p>
+    <div style="background-color: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 14px; padding: 16px; margin: 20px 0;">
+      <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: 800; color: #0f172a;">
+        Renew today to ensure seamless downloading during upcoming deadlines:
+      </p>
+      <ul style="margin: 0; padding-left: 18px; color: #334155; font-size: 12.5px; line-height: 1.8;">
+        <li>1-Click PDF & Excel (official GST version) downloads for all returns (GSTR-1, 3B, 2B, 1A, 4, 9, 9C, IMS)</li>
+        <li>1-Click custom month & year invoice-wise Sales (GSTR-1) & Purchase (GSTR-2B) Excel workbooks</li>
+        <li>Notice Radar for live GST notices and demand orders tracking</li>
+        <li>1-Click Cash & Credit Ledger Excel downloads</li>
+        <li>AI Captcha auto-fill & saved credentials for 1-click full auto-login</li>
+        <li>Continuous updates and all new features to come</li>
+      </ul>
+    </div>
+  `;
+
+  var html = renderEmailLayout({
+    badgeText: "&#9888;&#65039; Premium Renewal Notice",
+    badgeBg: "#fef3c7",
+    badgeColor: "#b45309",
+    badgeBorder: "#fde68a",
+    title: `License Expiry in ${Math.ceil(daysLeft)} Days`,
+    subtitle: "Keep your tax practice downloading without interruption.",
+    bodyHtml: bodyHtml,
+    ctaText: "Renew Premium License (from &#8377;399) &rarr;",
+    ctaUrl: "https://kasyhq.com/checkout?plan=gst-quarterly",
+    ctaBg: "#0f172a"
+  });
+
+  var res = dispatchEmail(email, subject, html);
+  return res === true ? "SENT_RENEWAL: " + formatToShortDate(new Date()) : "FAILED_RENEWAL: " + res;
+}
+
+// 4. Paid License Expired Email
+function sendPaidExpiredEmail(email, expiryDate) {
+  var subject = "Your ReturnPilot Premium License Has Expired — 1-Click Renewal";
+  var bodyHtml = `
+    <p style="font-size: 14px; color: #334155;">
+      Your <strong>ReturnPilot GST Premium License</strong> concluded on <strong>${formatToShortDate(expiryDate)}</strong>.
+    </p>
+    <div style="background-color: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 14px; padding: 16px; margin: 20px 0;">
+      <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: 800; color: #0f172a;">
+        Reactivate today to restore all automated practice capabilities:
+      </p>
+      <ul style="margin: 0; padding-left: 18px; color: #334155; font-size: 12.5px; line-height: 1.8;">
+        <li>1-Click official PDF & Excel downloads for all GST returns (GSTR-1, 3B, 2B, 1A, 4, 9, 9C, IMS)</li>
+        <li>1-Click custom month & year invoice-wise Sales & Purchase Excel compilations</li>
+        <li>Notice Radar for live GST notices and demand orders tracking</li>
+        <li>1-Click Cash & Credit Ledger downloads directly to Excel</li>
+        <li>AI Captcha auto-fill & saved credentials for 1-click full auto-login</li>
+        <li>Continuous updates and all new features to come</li>
+      </ul>
+    </div>
+  `;
+
+  var html = renderEmailLayout({
+    title: "Hi there,",
+    bodyHtml: bodyHtml,
+    ctaText: "Reactivate Premium License (3-Month Pass @ &#8377;399) &rarr;",
+    ctaUrl: "https://kasyhq.com/checkout?plan=gst-quarterly",
+    ctaBg: "#047857",
+    secondaryHtml: `Annual Plan: <strong>&#8377;1,999 / 1 Year</strong> at <a href="https://kasyhq.com/checkout" style="color: #0f172a; font-weight: 600;">kasyhq.com/checkout</a>`
+  });
+
+  var res = dispatchEmail(email, subject, html);
+  return res === true ? "SENT_EXPIRED: " + formatToShortDate(new Date()) : "FAILED_EXPIRED: " + res;
+}
+
+// 5. Paid User Accidental Uninstall Guide Email
+function sendPaidUninstallGuideEmail(email) {
+  var subject = "Accidental Uninstall? Your ReturnPilot Premium License is Still Active";
+  var bodyHtml = `
+    <p style="font-size: 14px; color: #334155;">
+      Hi there,<br><br>
+      We noticed that the <strong>ReturnPilot GST Return Downloader</strong> extension was uninstalled. If this was intentional, we thank you for your support!
+    </p>
+    <p style="font-size: 14px; color: #334155;">
+      If this was done by mistake or due to a browser update, <strong>your paid Premium License and saved settings remain fully active and secured</strong> on your account (${email}).
+    </p>
+    <div style="background-color: #f8fafc; border: 1.5px solid #059669; border-radius: 14px; padding: 18px; margin: 20px 0;">
+      <strong style="color: #065f46; font-size: 14px; display: block; margin-bottom: 8px;">
+        &#128161; How to restore your Premium features in 10 seconds:
+      </strong>
+      <ol style="margin: 0 0 14px 0; padding-left: 20px; color: #334155; font-size: 13px; line-height: 1.8;">
+        <li>Reinstall the extension from the Chrome Web Store.</li>
+        <li>Click the ReturnPilot icon in your Chrome toolbar.</li>
+        <li>Sign in with your Google account (<strong>${email}</strong>).</li>
+        <li>Your Premium tier will automatically reactivate immediately!</li>
+      </ol>
+      <div style="border-top: 1px dashed #cbd5e1; padding-top: 10px; font-size: 12px; color: #475569;">
+        &#10003; Immediately restores 1-Click official PDF/Excel downloads, custom Sales/Purchase workbooks, Notice Radar, Cash/Credit Ledgers, and 1-Click AI Auto-Login.
+      </div>
+    </div>
+  `;
+
+  var html = renderEmailLayout({
+    badgeText: "&#9733; ReturnPilot Premium Account Notice",
+    badgeBg: "#ecfdf5",
+    badgeColor: "#065f46",
+    badgeBorder: "#a7f3d0",
+    title: "Your Premium License is Safe & Active",
+    subtitle: "We noticed ReturnPilot was recently removed from your browser.",
+    bodyHtml: bodyHtml,
+    ctaText: "Reinstall ReturnPilot from Chrome Web Store &rarr;",
+    ctaUrl: "https://kasyhq.com/returnpilot-gst",
+    ctaBg: "#047857"
+  });
+
+  var res = dispatchEmail(email, subject, html);
+  return res === true ? "SENT_PAID_GUIDE: " + formatToShortDate(new Date()) : "FAILED_PAID_GUIDE: " + res;
+}
+
+// 6. Free Trial User Uninstall Winback Offer Email
+function sendUninstallWinbackEmail(email) {
+  var subject = "We're sorry to see you go — Special Offer for ReturnPilot GST Downloads";
+  var bodyHtml = `
+    <p style="font-size: 14px; color: #334155;">
+      Hi there,<br><br>
+      We're sorry to see you leave ReturnPilot. If you experienced any portal lag, captcha issue, or download friction on the GST portal, our engineering team is here to help make it seamless.
+    </p>
+    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; margin: 16px 0;">
+      <span style="background-color: #fef3c7; color: #b45309; font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 3px 8px; border-radius: 8px; display: inline-block; margin-bottom: 6px;">
+        FREE FOREVER TIP
+      </span>
+      <div style="color: #0f172a; font-size: 13.5px; font-weight: 700;">Just need JSON downloads?</div>
+      <p style="margin: 4px 0 0 0; color: #475569; font-size: 12.5px;">
+        All historical JSON downloads for GSTR-1, 3B, and 2B are <strong>100% Free Forever</strong> on ReturnPilot. You never need a paid plan for basic JSON return downloads.
+      </p>
+    </div>
+    <div style="background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%); border: 2px solid #059669; border-radius: 16px; padding: 18px; margin: 20px 0; text-align: center;">
+      <span style="background-color: #059669; color: #ffffff; font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 4px 10px; border-radius: 12px; display: inline-block; margin-bottom: 8px;">
+        &#9733; Special Comeback Offer
+      </span>
+      <h3 style="margin: 0 0 6px 0; color: #065f46; font-size: 19px; font-weight: 800;">3-Month Pass: &#8377;399 (Save 33%)</h3>
+      <p style="margin: 0 0 12px 0; color: #047857; font-size: 13px; font-weight: 600;">
+        Just &#8377;133/month &mdash; 1-Time UPI Payment. Unlocks 1-Click official PDF & Excel downloads, custom month/year invoice-wise Sales & Purchase Excel, Notice Radar alerts, 1-Click Cash & Credit Ledgers, 1-Click AI auto-login, and more to come!
+      </p>
+      <div style="background-color: #ffffff; border: 1.5px dashed #059669; border-radius: 10px; padding: 10px 14px; display: inline-block; margin-bottom: 14px;">
+        <span style="font-size: 11.5px; font-weight: 700; color: #065f46;">Special CA Practice Coupon:</span>
+        <span style="font-family: monospace; font-size: 14px; font-weight: 800; color: #047857; background: #ecfdf5; padding: 3px 8px; border-radius: 6px; border: 1px solid #a7f3d0; margin-left: 6px;">SAVE30</span>
+        <span style="font-size: 11.5px; color: #065f46; margin-left: 6px;">(30% OFF Today)</span>
+      </div>
+      <br>
+      <a href="https://kasyhq.com/checkout?plan=gst-quarterly&coupon=SAVE30" style="background-color: #047857; color: #ffffff; padding: 13px 26px; text-decoration: none; border-radius: 12px; font-weight: 800; font-size: 13.5px; display: inline-block; box-shadow: 0 4px 12px rgba(4, 120, 87, 0.25);">
+        Claim 3-Month Pass with SAVE30 &rarr;
+      </a>
+    </div>
+  `;
+
+  var html = renderEmailLayout({
+    badgeText: "&#9733; ReturnPilot Comeback Offer",
+    badgeBg: "#fff1f2",
+    badgeColor: "#9f1239",
+    badgeBorder: "#fecdd3",
+    title: "We're sorry to see you go",
+    subtitle: "A special offer to keep your GST return downloads 10x faster.",
+    bodyHtml: bodyHtml,
+    secondaryHtml: `<a href="https://kasyhq.com/returnpilot-gst" style="color: #0f172a; font-weight: 700; font-size: 13px; text-decoration: underline;">Reinstall Free Extension from Chrome Web Store &rarr;</a>`
+  });
+
+  var res = dispatchEmail(email, subject, html);
+  return res === true ? "SENT_WINBACK: " + formatToShortDate(new Date()) : "FAILED_WINBACK: " + res;
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 7. VALIDATION & SHEET HELPERS
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+function hasUninstallEmailBeenSent(sheet, email) {
+  if (!sheet || !email) return false;
+  try {
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return false;
+    var cleanTarget = String(email).trim().toLowerCase();
+    if (!cleanTarget || cleanTarget.includes("anonymous") || !cleanTarget.includes("@")) return false;
+
+    var data = sheet.getRange(2, COLUMNS.EMAIL, lastRow - 1, (COLUMNS.WELCOME_STATUS - COLUMNS.EMAIL + 1)).getValues();
+    var welcomeOffset = COLUMNS.WELCOME_STATUS - COLUMNS.EMAIL;
+
+    for (var i = 0; i < data.length; i++) {
+      var rowEmail = String(data[i][0] || "").trim().toLowerCase();
+      var welcomeCol = String(data[i][welcomeOffset] || "").toUpperCase();
+      if (rowEmail === cleanTarget) {
+        if (welcomeCol.includes("WINBACK") || 
+            welcomeCol.includes("GUIDE") || 
+            welcomeCol.includes("SENT_PAID_GUIDE") ||
+            welcomeCol.includes("SENT_WINBACK") ||
+            welcomeCol.includes("ALREADY_SENT_UNINSTALL")) {
+          return true;
+        }
+      }
+    }
+  } catch (_) {}
+  return false;
+}
+
+function hasWelcomeEmailBeenSent(sheet, email) {
+  if (!sheet || !email) return false;
+  try {
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return false;
+    var cleanTarget = String(email).trim().toLowerCase();
+    if (!cleanTarget || cleanTarget.includes("anonymous") || !cleanTarget.includes("@")) return false;
+
+    var data = sheet.getRange(2, COLUMNS.EMAIL, lastRow - 1, (COLUMNS.WELCOME_STATUS - COLUMNS.EMAIL + 1)).getValues();
+    var welcomeOffset = COLUMNS.WELCOME_STATUS - COLUMNS.EMAIL;
+
+    for (var i = 0; i < data.length; i++) {
+      var rowEmail = String(data[i][0] || "").trim().toLowerCase();
+      var welcomeCol = String(data[i][welcomeOffset] || "").toUpperCase();
+      if (rowEmail === cleanTarget) {
+        if (welcomeCol.includes("SENT_WELCOME") || 
+            welcomeCol === "WELCOME_SENT" ||
+            welcomeCol === STATUS.ALREADY_SENT_EARLIER ||
+            welcomeCol === STATUS.PAID_USER ||
+            welcomeCol === STATUS.PREMIUM_USER) {
+          return true;
+        }
+      }
+    }
+  } catch (_) {}
+  return false;
+}
+
+function hasExpiryEmailBeenSent(sheet, email) {
+  if (!sheet || !email) return false;
+  try {
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return false;
+    var cleanTarget = String(email).trim().toLowerCase();
+    if (!cleanTarget || cleanTarget.includes("anonymous") || !cleanTarget.includes("@")) return false;
+
+    var data = sheet.getRange(2, COLUMNS.EMAIL, lastRow - 1, (COLUMNS.EXPIRY_STATUS - COLUMNS.EMAIL + 1)).getValues();
+    var expiryOffset = COLUMNS.EXPIRY_STATUS - COLUMNS.EMAIL;
+
+    for (var i = 0; i < data.length; i++) {
+      var rowEmail = String(data[i][0] || "").trim().toLowerCase();
+      var expiryCol = String(data[i][expiryOffset] || "").toUpperCase();
+      if (rowEmail === cleanTarget) {
+        if (expiryCol.includes("SENT_EXPIRY") || 
+            expiryCol.includes("ALREADY_SENT_EXPIRY") ||
+            expiryCol === STATUS.PAID_USER ||
+            expiryCol === STATUS.SKIPPED_HISTORICAL_EXPIRY ||
+            expiryCol === STATUS.SKIPPED_HISTORICAL) {
+          return true;
+        }
+      }
+    }
+  } catch (_) {}
+  return false;
+}
+
+function updateUserExpiryStatusInSheet(sheet, email, expiryStatus) {
+  if (!sheet || !email || !expiryStatus) return;
+  try {
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return;
+    var cleanTarget = String(email).trim().toLowerCase();
+    var emailColValues = sheet.getRange(2, COLUMNS.EMAIL, lastRow - 1, 1).getValues();
+    for (var i = 0; i < emailColValues.length; i++) {
+      if (String(emailColValues[i][0]).trim().toLowerCase() === cleanTarget) {
+        var rowNum = i + 2;
+        var currentExpiry = String(sheet.getRange(rowNum, COLUMNS.EXPIRY_STATUS).getValue() || "").trim();
+        if (!currentExpiry || currentExpiry === "") {
+          sheet.getRange(rowNum, COLUMNS.EXPIRY_STATUS).setValue(expiryStatus);
+          break;
+        }
+      }
+    }
+  } catch (_) {}
+}
+
+function isUserPaidInSheet(sheet, email) {
+  if (!sheet || !email) return false;
+  try {
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return false;
+    var data = sheet.getRange(2, COLUMNS.EMAIL, lastRow - 1, 5).getValues();
+    var cleanTarget = String(email).trim().toLowerCase();
+    for (var i = 0; i < data.length; i++) {
+      var rowEmail = String(data[i][0] || "").trim().toLowerCase();
+      var rowAmount = String(data[i][3] || "").replace(/[^\d]/g, "");
+      var rowStatus = String(data[i][4] || "").toUpperCase();
+      if (rowEmail === cleanTarget) {
+        if (rowStatus.includes("UNINSTALL") || rowStatus.includes("TRIAL") || rowStatus === "ORDER_CREATED") continue;
+        if (rowStatus === STATUS.PAID || rowStatus === STATUS.CAPTURE_SUCCESS || rowStatus === STATUS.GIFTED || (parseInt(rowAmount, 10) > 0)) {
+          return true;
+        }
+      }
+    }
+  } catch (_) {}
+  return false;
+}
+
+function isUserRegisteredInSheet(sheet, email) {
+  if (!sheet || !email) return false;
+  try {
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return false;
+    var emails = sheet.getRange(2, COLUMNS.EMAIL, lastRow - 1, 1).getValues();
+    var cleanTarget = String(email).trim().toLowerCase();
+    for (var i = 0; i < emails.length; i++) {
+      var rowEmail = String(emails[i][0] || "").trim().toLowerCase();
+      if (rowEmail === cleanTarget) return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+function getUserOriginalRegistrationDate(sheet, email) {
+  if (!sheet || !email) return null;
+  try {
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return null;
+    var cleanTarget = String(email).trim().toLowerCase();
+    if (!cleanTarget || cleanTarget.includes("anonymous") || !cleanTarget.includes("@")) return null;
+
+    var data = sheet.getRange(2, 1, lastRow - 1, COLUMNS.STATUS).getValues();
+    for (var i = 0; i < data.length; i++) {
+      var rowEmail = String(data[i][COLUMNS.EMAIL - 1] || "").trim().toLowerCase();
+      var rowStatus = String(data[i][COLUMNS.STATUS - 1] || "").toUpperCase();
+      if (rowEmail === cleanTarget) {
+        if (rowStatus === STATUS.NEW_USER_TRIAL || rowStatus.includes("TRIAL") || rowStatus === STATUS.USER_RELOGIN) {
+          var d = parseAnyTimestamp(data[i][COLUMNS.TIMESTAMP - 1]);
+          if (d) return d;
+        }
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
+function getRawDataSheet(ss) {
+  if (!ss) ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(CONFIG.SHEET_TAB_NAME);
+  if (sheet && sheet.getName() !== "Executive KPI") return sheet;
+
+  sheet = ss.getSheetByName("Sheet1");
+  if (sheet) return sheet;
+
+  sheet = ss.getSheetByName("Live Event Stream");
+  if (sheet) return sheet;
+
+  var allSheets = ss.getSheets();
+  for (var i = 0; i < allSheets.length; i++) {
+    if (allSheets[i].getName() !== "Executive KPI") {
+      return allSheets[i];
+    }
+  }
+  return allSheets[0];
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 8. MIS BEAUTIFIER & AUTO-FORMATTER
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+function formatAndBeautifySheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = getRawDataSheet(ss);
+  if (!sheet) return;
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 1) return;
+
+  createStandardHeaders(sheet);
+
+  if (lastRow >= 2) {
+    var totalRows = lastRow - 1;
+    var rangeAll = sheet.getRange(2, 1, totalRows, TOTAL_COLUMNS);
+    
+    rangeAll.setFontFamily("Segoe UI")
+            .setFontSize(9.5)
+            .setVerticalAlignment("middle");
+
+    // Standardize Timestamps in Column A across all rows
+    var colATimestamps = sheet.getRange(2, 1, totalRows, 1).getValues();
+    for (var r = 0; r < totalRows; r++) {
+      var d = parseAnyTimestamp(colATimestamps[r][0]);
+      if (d) {
+        colATimestamps[r][0] = formatToStandardIst(d);
+      }
+    }
+    sheet.getRange(2, 1, totalRows, 1).setValues(colATimestamps);
+
+    // Standardize Amounts in Column E to clean numeric values with Currency Format
+    var colEAmounts = sheet.getRange(2, COLUMNS.AMOUNT, totalRows, 1).getValues();
+    for (var a = 0; a < totalRows; a++) {
+      var val = colEAmounts[a][0];
+      if (val !== "" && val !== null && val !== undefined) {
+        var numStr = String(val).replace(/[^\d.]/g, "");
+        if (numStr) {
+          colEAmounts[a][0] = parseFloat(numStr);
+        }
+      }
+    }
+    sheet.getRange(2, COLUMNS.AMOUNT, totalRows, 1).setValues(colEAmounts).setNumberFormat('"₹"#,##0');
+
+    // Alignments
+    sheet.getRange(2, COLUMNS.TIMESTAMP, totalRows, 1).setHorizontalAlignment("center");
+    sheet.getRange(2, COLUMNS.EMAIL, totalRows, 1).setHorizontalAlignment("left");
+    sheet.getRange(2, COLUMNS.PRODUCT, totalRows, 2).setHorizontalAlignment("center");
+    sheet.getRange(2, COLUMNS.AMOUNT, totalRows, 1).setHorizontalAlignment("right").setFontWeight("bold");
+    sheet.getRange(2, COLUMNS.STATUS, totalRows, 3).setHorizontalAlignment("center");
+    sheet.getRange(2, COLUMNS.DETAILS, totalRows, 1).setHorizontalAlignment("left");
+    sheet.getRange(2, COLUMNS.WELCOME_STATUS, totalRows, 3).setHorizontalAlignment("center").setFontSize(8.5);
+
+    setupConditionalFormatting(sheet);
+
+    sheet.setColumnWidth(COLUMNS.TIMESTAMP, 155);
+    sheet.setColumnWidth(COLUMNS.EMAIL, 230);
+    sheet.setColumnWidth(COLUMNS.PRODUCT, 110);
+    sheet.setColumnWidth(COLUMNS.TERM, 120);
+    sheet.setColumnWidth(COLUMNS.AMOUNT, 95);
+    sheet.setColumnWidth(COLUMNS.STATUS, 160);
+    sheet.setColumnWidth(COLUMNS.SOURCE, 130);
+    sheet.setColumnWidth(COLUMNS.DEVICE, 120);
+    sheet.setColumnWidth(COLUMNS.DETAILS, 240);
+    sheet.setColumnWidth(COLUMNS.WELCOME_STATUS, 180);
+    sheet.setColumnWidth(COLUMNS.EXPIRY_STATUS, 160);
+    sheet.setColumnWidth(COLUMNS.RENEWAL_STATUS, 180);
+  }
+
+  SpreadsheetApp.getActiveSpreadsheet().toast("MIS Sheet cleaned, standardized, and formatted successfully!", "✨ Beautify Complete", 5);
+}
+
+function buildExecutiveKpiDashboard() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var rawSheet = getRawDataSheet(ss);
+  var kpiSheet = ss.getSheetByName("Executive KPI");
+  
+  if (!kpiSheet) {
+    kpiSheet = ss.insertSheet("Executive KPI", 0);
+  }
+  
+  kpiSheet.clear();
+  try {
+    kpiSheet.setHideGridlines(true);
+  } catch (_) {}
+  
+  // Set clean, responsive column widths aligned to the data
+  kpiSheet.setColumnWidth(1, 24);  // Col A: Margin Spacer
+  kpiSheet.setColumnWidth(2, 155); // Col B: Date (IST)
+  kpiSheet.setColumnWidth(3, 220); // Col C: Customer Email
+  kpiSheet.setColumnWidth(4, 145); // Col D: Plan / Duration
+  kpiSheet.setColumnWidth(5, 95);  // Col E: Amount (₹)
+  kpiSheet.setColumnWidth(6, 460); // Col F: Order / Payment Details
+
+  // Header Banner
+  var banner = kpiSheet.getRange("B2:F3");
+  banner.merge()
+        .setValue("🚀 ReturnPilot GST — Executive MIS & Growth Dashboard")
+        .setBackground("#0f172a")
+        .setFontColor("#ffffff")
+        .setFontSize(13)
+        .setFontWeight("bold")
+        .setHorizontalAlignment("center")
+        .setVerticalAlignment("middle");
+
+  var tab = "'" + rawSheet.getName() + "'!";
+
+  // --- ROW 5-7: PRIMARY KPI CARDS ---
+  // Card 1: Total Trial Registrations (Col B:C)
+  kpiSheet.getRange("B5:C5").merge().setValue("TOTAL TRIAL REGISTRATIONS").setBackground("#eff6ff").setFontColor("#1e40af").setFontWeight("bold").setFontSize(9).setHorizontalAlignment("center");
+  kpiSheet.getRange("B6:C7").merge().setFormula("=COUNTIF(" + tab + "F2:F, \"NEW_USER_TRIAL\") + COUNTIF(" + tab + "F2:F, \"USER_RELOGIN\")").setBackground("#eff6ff").setFontColor("#1e3a8a").setFontSize(22).setFontWeight("bold").setHorizontalAlignment("center").setVerticalAlignment("middle");
+
+  // Card 2: Paying / Gifted Subscribers (Col D:E)
+  kpiSheet.getRange("D5:E5").merge().setValue("PAID & GIFTED SUBSCRIBERS").setBackground("#ecfdf5").setFontColor("#065f46").setFontWeight("bold").setFontSize(9).setHorizontalAlignment("center");
+  kpiSheet.getRange("D6:E7").merge().setFormula("=COUNTIF(" + tab + "F2:F, \"PAID\") + COUNTIF(" + tab + "F2:F, \"GIFTED\")").setBackground("#ecfdf5").setFontColor("#064e3b").setFontSize(22).setFontWeight("bold").setHorizontalAlignment("center").setVerticalAlignment("middle");
+
+  // Card 3: Trial-to-Paid Conversion Rate (Col F)
+  kpiSheet.getRange("F5").setValue("TRIAL-TO-PAID CONVERSION %").setBackground("#faf5ff").setFontColor("#6b21a8").setFontWeight("bold").setFontSize(9).setHorizontalAlignment("center");
+  kpiSheet.getRange("F6:F7").merge().setFormula("=IFERROR((COUNTIF(" + tab + "F2:F, \"PAID\") + COUNTIF(" + tab + "F2:F, \"GIFTED\")) / COUNTIF(" + tab + "F2:F, \"NEW_USER_TRIAL\"), 0)").setNumberFormat("0.0%").setBackground("#faf5ff").setFontColor("#581c87").setFontSize(22).setFontWeight("bold").setHorizontalAlignment("center").setVerticalAlignment("middle");
+
+  // --- ROW 9-11: SECONDARY KPI CARDS ---
+  // Card 4: Total Revenue (Col B:C)
+  kpiSheet.getRange("B9:C9").merge().setValue("GROSS REVENUE COLLECTED").setBackground("#f0fdf4").setFontColor("#166534").setFontWeight("bold").setFontSize(9).setHorizontalAlignment("center");
+  kpiSheet.getRange("B10:C11").merge().setFormula("=SUMIF(" + tab + "F2:F, \"PAID\", " + tab + "E2:E)").setNumberFormat("\"₹\"#,##0").setBackground("#f0fdf4").setFontColor("#14532d").setFontSize(22).setFontWeight("bold").setHorizontalAlignment("center").setVerticalAlignment("middle");
+
+  // Card 5: Checkout Completion Rate (Col D:E)
+  kpiSheet.getRange("D9:E9").merge().setValue("CHECKOUT COMPLETION RATE").setBackground("#fffbeb").setFontColor("#92400e").setFontWeight("bold").setFontSize(9).setHorizontalAlignment("center");
+  kpiSheet.getRange("D10:E11").merge().setFormula("=IFERROR(COUNTIF(" + tab + "F2:F, \"PAID\") / COUNTIF(" + tab + "F2:F, \"ORDER_CREATED\"), 1)").setNumberFormat("0.0%").setBackground("#fffbeb").setFontColor("#78350f").setFontSize(22).setFontWeight("bold").setHorizontalAlignment("center").setVerticalAlignment("middle");
+
+  // Card 6: Winbacks Dispatched (Col F)
+  kpiSheet.getRange("F9").setValue("WINBACK OFFERS SENT").setBackground("#fff1f2").setFontColor("#9f1239").setFontWeight("bold").setFontSize(9).setHorizontalAlignment("center");
+  kpiSheet.getRange("F10:F11").merge().setFormula("=COUNTIF(" + tab + "J2:J, \"*WINBACK*\")").setBackground("#fff1f2").setFontColor("#881337").setFontSize(22).setFontWeight("bold").setHorizontalAlignment("center").setVerticalAlignment("middle");
+
+  // --- ROW 14-18: BREAKDOWN TABLES ---
+  // Left Table: Feedback & Churn Breakdown (Col B:C)
+  kpiSheet.getRange("B14:C14").merge().setValue("UNINSTALL REASONS BREAKDOWN").setBackground("#334155").setFontColor("#ffffff").setFontWeight("bold").setFontSize(10).setHorizontalAlignment("center");
+  kpiSheet.getRange("B15").setValue("Encountered Bug or Download Error").setFontWeight("bold");
+  kpiSheet.getRange("C15").setFormula("=COUNTIF(" + tab + "I2:I, \"*bug*\")").setHorizontalAlignment("right");
+  
+  kpiSheet.getRange("B16").setValue("Price / Premium Plan Too High").setFontWeight("bold");
+  kpiSheet.getRange("C16").setFormula("=COUNTIF(" + tab + "I2:I, \"*Price*\")").setHorizontalAlignment("right");
+  
+  kpiSheet.getRange("B17").setValue("Found Another Tool / Solution").setFontWeight("bold");
+  kpiSheet.getRange("C17").setFormula("=COUNTIF(" + tab + "I2:I, \"*another tool*\")").setHorizontalAlignment("right");
+
+  kpiSheet.getRange("B18").setValue("Other Reasons / Navigation").setFontWeight("bold");
+  kpiSheet.getRange("C18").setFormula("=COUNTIF(" + tab + "I2:I, \"*Something else*\") + COUNTIF(" + tab + "I2:I, \"*navigate*\")").setHorizontalAlignment("right");
+
+  kpiSheet.getRange("B15:C18").setBorder(true, true, true, true, true, true, "#cbd5e1", SpreadsheetApp.BorderStyle.SOLID);
+
+  // Center Table: Return Types Download Activity (Col D:E)
+  kpiSheet.getRange("D14:E14").merge().setValue("RETURNS DOWNLOAD ACTIVITY").setBackground("#334155").setFontColor("#ffffff").setFontWeight("bold").setFontSize(10).setHorizontalAlignment("center");
+  kpiSheet.getRange("D15").setValue("GSTR-1 (Outward Sales)").setFontWeight("bold");
+  kpiSheet.getRange("E15").setFormula("=COUNTIF(" + tab + "I2:I, \"*GSTR-1*\")").setHorizontalAlignment("right");
+
+  kpiSheet.getRange("D16").setValue("GSTR-2B (Auto-Drafted ITC)").setFontWeight("bold");
+  kpiSheet.getRange("E16").setFormula("=COUNTIF(" + tab + "I2:I, \"*GSTR-2B*\")").setHorizontalAlignment("right");
+
+  kpiSheet.getRange("D17").setValue("GSTR-3B (Summary Return)").setFontWeight("bold");
+  kpiSheet.getRange("E17").setFormula("=COUNTIF(" + tab + "I2:I, \"*GSTR-3B*\")").setHorizontalAlignment("right");
+
+  kpiSheet.getRange("D18").setValue("GSTR-9 / 9C (Annual Returns)").setFontWeight("bold");
+  kpiSheet.getRange("E18").setFormula("=COUNTIF(" + tab + "I2:I, \"*GSTR-9*\")").setHorizontalAlignment("right");
+
+  kpiSheet.getRange("D15:E18").setBorder(true, true, true, true, true, true, "#cbd5e1", SpreadsheetApp.BorderStyle.SOLID);
+
+  // Right Table: Key Growth & Funnel Benchmarks (Col F)
+  kpiSheet.getRange("F14").setValue("KEY GROWTH & FUNNEL BENCHMARKS").setBackground("#334155").setFontColor("#ffffff").setFontWeight("bold").setFontSize(10).setHorizontalAlignment("center");
+  kpiSheet.getRange("F15").setValue("★ Trial-to-Paid Benchmark: 5.0% (Solid CA Conversion)").setFontSize(9);
+  kpiSheet.getRange("F16").setValue("★ Checkout Efficiency: 94.4% (17 of 18 Orders Converted)").setFontSize(9);
+  kpiSheet.getRange("F17").setValue("★ Top Workflow: GSTR-1 Accounts for 90% of Activity").setFontSize(9);
+  kpiSheet.getRange("F18").setValue("★ Active Promo: SAVE30 Dispatched in Expiry & Winback").setFontSize(9);
+  kpiSheet.getRange("F15:F18").setBorder(true, true, true, true, true, true, "#cbd5e1", SpreadsheetApp.BorderStyle.SOLID);
+
+  // --- ROW 21: RECENT PAID CUSTOMERS TABLE ---
+  kpiSheet.getRange("B21:F21").merge().setValue("💎 RECENT PAID CUSTOMERS & ACTIVE LICENSES").setBackground("#0f172a").setFontColor("#ffffff").setFontWeight("bold").setFontSize(10).setHorizontalAlignment("left");
+  
+  try {
+    kpiSheet.getRange("B22:F45").breakApart();
+  } catch (_) {}
+  kpiSheet.getRange("B22:F45").clearContent();
+
+  var queryFormula = '=IFERROR(QUERY(' + tab + 'A2:L, "SELECT A, B, D, E, I WHERE F = \'PAID\' OR F = \'GIFTED\' ORDER BY A DESC LIMIT 12 LABEL A \'Date (IST)\', B \'Subscriber Email\', D \'Plan / Duration\', E \'Amount\', I \'Order / Payment Details\'", 1), "No paid subscribers recorded yet")';
+  kpiSheet.getRange("B22").setFormula(queryFormula);
+
+  // Header row formatting (Row 22)
+  kpiSheet.getRange("B22:F22")
+          .setBackground("#1e293b")
+          .setFontColor("#ffffff")
+          .setFontWeight("bold")
+          .setFontSize(9.5)
+          .setVerticalAlignment("middle");
+
+  // Data row styling & Date/Currency formatting (Rows 23-36)
+  kpiSheet.getRange("B23:B36")
+          .setNumberFormat("dd-mmm-yyyy HH:mm")
+          .setHorizontalAlignment("center")
+          .setFontFamily("Segoe UI")
+          .setFontSize(9);
+
+  kpiSheet.getRange("C23:C36")
+          .setHorizontalAlignment("left")
+          .setFontFamily("Segoe UI")
+          .setFontSize(9);
+
+  kpiSheet.getRange("D23:D36")
+          .setHorizontalAlignment("center")
+          .setFontFamily("Segoe UI")
+          .setFontSize(9);
+
+  kpiSheet.getRange("E23:E36")
+          .setNumberFormat('"₹"#,##0')
+          .setFontWeight("bold")
+          .setHorizontalAlignment("right")
+          .setFontFamily("Segoe UI")
+          .setFontSize(9);
+
+  kpiSheet.getRange("F23:F36")
+          .setHorizontalAlignment("left")
+          .setFontFamily("Segoe UI")
+          .setFontSize(9);
+
+  try {
+    kpiSheet.getRange("B22:F36").setBorder(true, true, true, true, true, true, "#cbd5e1", SpreadsheetApp.BorderStyle.SOLID);
+  } catch (_) {}
+  
+  SpreadsheetApp.getActiveSpreadsheet().setActiveSheet(kpiSheet);
+  SpreadsheetApp.getActiveSpreadsheet().toast("Executive KPI Dashboard built and refreshed with live formulas!", "📈 KPI Dashboard Ready", 6);
+}
+
+function createStandardHeaders(sheet) {
+  var headers = [
+    "Timestamp (IST)", "Customer Email", "Product", "Term / Duration",
+    "Amount", "Event / License Status", "Source / Channel", "Device / OS", "Details / Metadata",
+    "Welcome / Winback Status", "Trial Expiry Status", "Paid Renewal Status"
+  ];
+  sheet.getRange(1, 1, 1, TOTAL_COLUMNS).setValues([headers]);
+  var hr = sheet.getRange(1, 1, 1, TOTAL_COLUMNS);
+  hr.setBackground("#0f172a")
+    .setFontColor("#ffffff")
+    .setFontWeight("bold")
+    .setFontSize(10)
+    .setFontFamily("Segoe UI")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setWrap(false);
+    
+  sheet.setRowHeight(1, 36);
+  sheet.setFrozenRows(1);
+}
+
+function setupConditionalFormatting(sheet) {
+  var statusRange = sheet.getRange("F2:F");
+  
+  var rulePaid = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains("PAID").setBackground("#ecfdf5").setFontColor("#065f46").setBold(true)
+    .setRanges([statusRange]).build();
+
+  var ruleTrial = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains("TRIAL").setBackground("#eff6ff").setFontColor("#1e40af").setBold(true)
+    .setRanges([statusRange]).build();
+
+  var ruleFeedback = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains("UNINSTALL").setBackground("#fff1f2").setFontColor("#9f1239").setBold(true)
+    .setRanges([statusRange]).build();
+
+  var ruleFeedbackSubmitted = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains("FEEDBACK").setBackground("#fef3c7").setFontColor("#92400e").setBold(true)
+    .setRanges([statusRange]).build();
+
+  var ruleGift = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains("GIFT").setBackground("#faf5ff").setFontColor("#6b21a8").setBold(true)
+    .setRanges([statusRange]).build();
+
+  var rulePiracy = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains("PIRACY").setBackground("#450a0a").setFontColor("#fecaca").setBold(true)
+    .setRanges([statusRange]).build();
+
+  sheet.setConditionalFormatRules([rulePiracy, rulePaid, ruleTrial, ruleFeedback, ruleFeedbackSubmitted, ruleGift]);
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 9. FIREBASE SYNC (One-Time Catchup)
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+function syncAndPopulateTrials() {
+  var apiUrl = "https://kasyhq.com/api/admin/subscribers?secret=" + encodeURIComponent(CONFIG.ADMIN_SECRET_KEY);
+  try {
+    var response = UrlFetchApp.fetch(apiUrl, { muteHttpExceptions: true });
+    var json = JSON.parse(response.getContentText());
+
+    if (!json.success || !json.subscribers) {
+      SpreadsheetApp.getUi().alert("Sync Notice: " + (json.error || "Please verify ADMIN_SECRET_KEY in script."));
+      return;
+    }
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = getRawDataSheet(ss);
+
+    var existingEmails = {};
+    if (sheet.getLastRow() > 1) {
+      var oldRows = sheet.getRange(2, COLUMNS.EMAIL, sheet.getLastRow() - 1, 1).getValues();
+      oldRows.forEach(function(r) {
+        var em = String(r[0]).trim().toLowerCase();
+        if (em) existingEmails[em] = true;
+      });
+    }
+
+    var newRowsToAppend = [];
+    json.subscribers.forEach(function(s) {
+      var email = String(s.email || "").trim().toLowerCase();
+      if (email && !existingEmails[email]) {
+        var dateObj = s.firstSeenAt ? new Date(s.firstSeenAt) : new Date();
+        var dateStr = formatToStandardIst(dateObj);
+        
+        var isVip = s.category === "GIFTED" || s.category === "PAID" || String(s.plan || "").toUpperCase() === "PREMIUM";
+        var statusLabel = s.category === "GIFTED" ? STATUS.GIFTED : (s.category === "PAID" ? STATUS.PAID : STATUS.NEW_USER_TRIAL);
+        var termLabel = s.billingCycle || (isVip ? "PREMIUM LICENSE" : "Trial (7 Days)");
+        
+        newRowsToAppend.push([
+          dateStr,
+          email,
+          s.product || "ReturnPilot-GST Return Downloader",
+          termLabel,
+          s.amount || "",
+          statusLabel,
+          "Firebase Sync",
+          "Web",
+          "Imported from Firestore: " + (s.plan || "FREE"),
+          isVip ? STATUS.PREMIUM_USER : STATUS.SKIPPED_HISTORICAL,
+          isVip ? STATUS.PREMIUM_USER : "",
+          ""
+        ]);
+        existingEmails[email] = true;
+      }
+    });
+
+    if (newRowsToAppend.length > 0) {
+      sheet.getRange(sheet.getLastRow() + 1, 1, newRowsToAppend.length, TOTAL_COLUMNS).setValues(newRowsToAppend);
+      SpreadsheetApp.flush();
+      formatAndBeautifySheet();
+    }
+
+    SpreadsheetApp.getActiveSpreadsheet().toast("Synced " + newRowsToAppend.length + " users from Firebase!", "Sync Complete", 5);
+  } catch (err) {
+    Logger.log("Sync error: " + err.toString());
+  }
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 10. TIMEZONE-SAFE DATE PARSERS & FORMATTERS
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+function formatToStandardIst(d) {
+  if (!d || !(d instanceof Date) || isNaN(d.getTime())) return "";
+  return Utilities.formatDate(d, CONFIG.TIMEZONE, "dd-MMM-yyyy HH:mm:ss");
+}
+
+function formatToShortDate(d) {
+  if (!d || !(d instanceof Date) || isNaN(d.getTime())) return "";
+  return Utilities.formatDate(d, CONFIG.TIMEZONE, "dd/MM/yyyy");
+}
+
+function parseAnyTimestamp(input) {
+  if (!input) return null;
+  if (input instanceof Date) return isNaN(input.getTime()) ? null : input;
+
+  var str = String(input).trim();
+  if (!str) return null;
+
+  // Epoch ms or seconds
+  if (/^\d{10,14}$/.test(str)) {
+    var num = parseInt(str, 10);
+    if (str.length === 10) num *= 1000;
+    var dNum = new Date(num);
+    return isNaN(dNum.getTime()) ? null : dNum;
+  }
+
+  // ISO 8601 strings
+  if (str.includes("T") && (str.endsWith("Z") || str.includes("+") || str.includes("-"))) {
+    var dIso = new Date(str);
+    if (!isNaN(dIso.getTime())) return dIso;
+  }
+
+  var monthMap = { 
+    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, 
+    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 
+  };
+
+  try {
+    var cleanStr = str.replace(/,/g, " ").replace(/\s+/g, " ").trim();
+    var parts = cleanStr.split(" ");
+    if (parts.length >= 1) {
+      var dateParts = parts[0].split(/[\/\-]/);
+      var timeParts = parts.length > 1 ? parts[1].split(":") : ["0", "0", "0"];
+      var ampm = "";
+
+      for (var p = 1; p < parts.length; p++) {
+        var lower = parts[p].toLowerCase();
+        if (lower === "am" || lower === "pm") {
+          ampm = lower;
+          break;
+        }
+      }
+
+      var day = parseInt(dateParts[0], 10);
+      var monthRaw = String(dateParts[1] || "").toLowerCase();
+      var month = monthMap[monthRaw] !== undefined ? monthMap[monthRaw] : (parseInt(monthRaw, 10) - 1);
+      var year = parseInt(dateParts[2], 10);
+      if (year < 100) year += 2000;
+
+      var hour = timeParts.length > 0 ? parseInt(timeParts[0], 10) : 0;
+      var min = timeParts.length > 1 ? parseInt(timeParts[1], 10) : 0;
+      var sec = timeParts.length > 2 ? parseInt(timeParts[2], 10) : 0;
+
+      if (ampm === "pm" && hour < 12) {
+        hour += 12;
+      } else if (ampm === "am" && hour === 12) {
+        hour = 0;
+      }
+
+      // Convert IST date string (UTC+5:30) to exact epoch timestamp
+      var utcMillis = Date.UTC(year, month, day, hour, min, sec) - (5.5 * 60 * 60 * 1000);
+      var parsed = new Date(utcMillis);
+      return isNaN(parsed.getTime()) ? null : parsed;
+    }
+  } catch (_) {}
+  return null;
+}

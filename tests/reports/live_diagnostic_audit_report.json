@@ -1,0 +1,102 @@
+{
+  "timestamp": "2026-10-14T20:43:38.747542",
+  "extension_id": "oogofhjdbhhfkmdndmojhjgmpeookcnb",
+  "active_gstin": null,
+  "taxpayer_name": "",
+  "fin_year": "2024-25",
+  "audit_results": {
+    "issue_1": {
+      "period": "042024",
+      "gstr3b_api": {
+        "cgst": 0,
+        "igst": 0,
+        "itc_cgst": 0,
+        "itc_igst": 0,
+        "itc_sgst": 0,
+        "ok": true,
+        "sgst": 0,
+        "taxable": 0
+      },
+      "gstr1_api": {
+        "b2bTaxable": 0,
+        "b2csTaxable": 0,
+        "cgst": 0,
+        "igst": 0,
+        "ok": true,
+        "sgst": 0,
+        "totalTaxable": 0
+      },
+      "amounts_match": true,
+      "discrepancies": []
+    },
+    "issue_2": {
+      "fin_year": "2026-27",
+      "total_filed_records": 0,
+      "filed_periods": [],
+      "unfiled_periods": [
+        "042026",
+        "052026",
+        "062026",
+        "072026",
+        "082026",
+        "092026",
+        "102026",
+        "112026",
+        "122026",
+        "012027",
+        "022027",
+        "032027"
+      ]
+    },
+    "issue_3": {
+      "isolated": true,
+      "periodA": "042024",
+      "periodB": "052024",
+      "snapshotA": {
+        "angular": "042024",
+        "ls": "042024",
+        "ss": "042024"
+      },
+      "snapshotB": {
+        "angular": "052024",
+        "ls": "052024",
+        "ss": "052024"
+      }
+    },
+    "issue_4": {
+      "error": "Failed to fetch",
+      "ok": false
+    },
+    "issue_5": [
+      {
+        "latencyMs": 64,
+        "name": "GSTR-3B Summary API",
+        "ok": true,
+        "status": 200,
+        "url": "https://return.gst.gov.in/returns/auth/api/gstr3b/summary?rtn_prd=042024"
+      },
+      {
+        "error": "Failed to fetch",
+        "latencyMs": 65,
+        "name": "GSTR-2B JSON API",
+        "ok": false,
+        "status": 0,
+        "url": "https://gstr2b.gst.gov.in/gstr2b/auth/api/gstr2b/getjson?rtn_prd=042024"
+      },
+      {
+        "latencyMs": 229,
+        "name": "GSTR-1 Summary API",
+        "ok": true,
+        "status": 200,
+        "url": "https://return.gst.gov.in/returns/auth/api/gstr1/summary?rtn_prd=042024"
+      },
+      {
+        "latencyMs": 295,
+        "name": "Dashboard Status API",
+        "ok": true,
+        "status": 200,
+        "url": "https://return.gst.gov.in/services/api/ustatus"
+      }
+    ]
+  }
+}

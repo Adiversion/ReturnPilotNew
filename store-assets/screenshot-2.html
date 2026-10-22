@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Screenshot 2 — Main Extension UI & Return Filing Grid</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            width: 1280px;
+            height: 800px;
+            overflow: hidden;
+            background: linear-gradient(145deg, #060d1f 0%, #0d1e3d 50%, #060d1f 100%);
+            font-family: 'Inter', system-ui, sans-serif;
+            color: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 24px 48px 18px 48px;
+            position: relative;
+        }
+
+        .ambient-glow {
+            position: absolute;
+            top: -120px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 900px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(37, 99, 235, 0.35) 0%, rgba(16, 185, 129, 0.18) 50%, transparent 80%);
+            filter: blur(70px);
+            pointer-events: none;
+        }
+
+        .header { text-align: center; z-index: 10; }
+        
+        .top-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(16, 185, 129, 0.18);
+            border: 1px solid rgba(52, 211, 153, 0.45);
+            color: #6ee7b7;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 4px 14px;
+            border-radius: 9999px;
+            margin-bottom: 6px;
+        }
+        .top-pill::before {
+            content: "⚡";
+            font-size: 11px;
+        }
+
+        .title {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 30px;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            color: #ffffff;
+            line-height: 1.2;
+        }
+        .title span {
+            background: linear-gradient(135deg, #60a5fa 0%, #38bdf8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .subtitle {
+            font-size: 13.5px;
+            color: #cbd5e1;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        .returns-tags-bar {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        .tag-pill {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 3px 9px;
+            border-radius: 5px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #f1f5f9;
+        }
+        .tag-pill.accent {
+            background: #2563eb;
+            border-color: #60a5fa;
+            color: #ffffff;
+        }
+
+        /* Mockup Frame */
+        .mockup-frame {
+            width: 870px;
+            height: 565px;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 30px 70px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.18);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            color: #0f172a;
+        }
+
+        .top-navbar {
+            height: 44px;
+            background: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 14px;
+            gap: 8px;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 800;
+            font-size: 14px;
+            color: #0f172a;
+        }
+        .return-tabs-nav {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+        .nav-tab {
+            padding: 4px 8px;
+            border-radius: 5px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #475569;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+        }
+        .nav-tab.active {
+            background: #eff6ff;
+            color: #1d4ed8;
+            border-color: #93c5fd;
+            font-weight: 800;
+        }
+        .btn-refresh {
+            background: #2563eb;
+            color: #ffffff;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 5px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .client-header {
+            padding: 9px 16px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .client-title { font-size: 13.5px; font-weight: 800; color: #0f172a; }
+        .client-meta { font-size: 11px; color: #64748b; margin-top: 2px; }
+        .client-meta strong { color: #0f172a; font-weight: 700; }
+
+        .toolbar {
+            padding: 7px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #ffffff;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .fy-picker {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11.5px;
+            color: #475569;
+            font-weight: 600;
+        }
+        .fy-badge {
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            padding: 2px 8px;
+            border-radius: 4px;
+            color: #0f172a;
+            font-weight: 700;
+            font-size: 11px;
+        }
+        .action-btn-group { display: flex; gap: 5px; }
+        .btn-tool {
+            padding: 4px 9px;
+            font-size: 10.5px;
+            font-weight: 700;
+            border-radius: 4px;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            cursor: pointer;
+        }
+        .btn-tool.gen { color: #ea580c; border-color: #fdba74; background: #fff7ed; }
+        .btn-tool.json { color: #2563eb; border-color: #bfdbfe; background: #eff6ff; }
+        .btn-tool.excel { color: #16a34a; border-color: #bbf7d0; background: #f0fdf4; }
+        .btn-tool.pdf { color: #dc2626; border-color: #fca5a5; background: #fef2f2; }
+
+        .table-area {
+            flex: 1;
+            padding: 8px 16px;
+            overflow: hidden;
+            background: #ffffff;
+        }
+        .styled-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .styled-table th {
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 700;
+            padding: 6px 10px;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+        }
+        .styled-table td {
+            padding: 5.5px 10px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #1e293b;
+        }
+        .styled-table tr:hover { background: #f8fafc; }
+        .badge-filed {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 700;
+            background: #ecfdf5;
+            color: #047857;
+            border: 1px solid #a7f3d0;
+        }
+        .btn-matrix-group { display: flex; gap: 4px; }
+        .btn-mat {
+            padding: 2px 7px;
+            font-size: 9.5px;
+            font-weight: 700;
+            border-radius: 3px;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+        }
+        .btn-mat.pdf { color: #dc2626; border-color: #fca5a5; background: #fef2f2; }
+        .btn-mat.json { color: #2563eb; border-color: #bfdbfe; background: #eff6ff; }
+        .btn-mat.excel { color: #16a34a; border-color: #bbf7d0; background: #f0fdf4; }
+
+        .window-footer {
+            height: 30px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 10.5px;
+            color: #64748b;
+        }
+        .footer-links { display: flex; gap: 12px; }
+        .footer-links span { color: #2563eb; font-weight: 600; }
+
+        .footer-note { font-size: 11px; color: #94a3b8; text-align: center; z-index: 10; }
+    </style>
+</head>
+<body>
+    <div class="ambient-glow"></div>
+
+    <div class="header">
+        <div class="top-pill">Save 40+ Minutes Per Client</div>
+        <h1 class="title">1-Click Download for <span>All GST Returns</span> (JSON • PDF • Excel)</h1>
+        <p class="subtitle">Fast, accurate data export directly from your active GST portal session.</p>
+        <div class="returns-tags-bar">
+            <span class="tag-pill accent">GSTR-1</span>
+            <span class="tag-pill accent">GSTR-1A</span>
+            <span class="tag-pill accent">GSTR-2A</span>
+            <span class="tag-pill accent">GSTR-2B</span>
+            <span class="tag-pill accent">GSTR-3B</span>
+            <span class="tag-pill accent">IMS Inward & Outward</span>
+            <span class="tag-pill accent">GSTR-9 & 9C</span>
+        </div>
+    </div>
+
+    <div class="mockup-frame">
+        <div class="top-navbar">
+            <div class="brand">
+                <img src="__LOGO_DATA_URI__" style="width:26px; height:26px; object-fit:contain; vertical-align:middle;" alt="ReturnPilot Logo">
+                <span style="font-size:14px; font-weight:800; color:#0f172a; margin-left:2px;">ReturnPilot</span>
+            </div>
+            <div class="return-tabs-nav">
+                <div class="nav-tab active">GSTR-3B</div>
+                <div class="nav-tab">GSTR-1</div>
+                <div class="nav-tab">GSTR-1A</div>
+                <div class="nav-tab">GSTR-2A</div>
+                <div class="nav-tab">GSTR-2B</div>
+                <div class="nav-tab">IMS</div>
+                <div class="nav-tab">GSTR-9</div>
+                <div class="nav-tab">GSTR-9C</div>
+            </div>
+            <button class="btn-refresh">↻ Refresh</button>
+        </div>
+
+        <div class="client-header">
+            <div>
+                <h2 class="client-title">ABC ENTERPRISES PVT LTD</h2>
+                <div class="client-meta">
+                    GSTIN: <strong>27AAAAA0000A1Z5</strong> | Type: <strong>Regular</strong> | Frequency: <strong>Monthly</strong>
+                </div>
+            </div>
+            <div style="font-size:10.5px; color:#16a34a; font-weight:700; background:#f0fdf4; padding:2px 8px; border-radius:4px; border:1px solid #bbf7d0;">
+                ● Active Portal Session
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <div class="fy-picker">
+                <span>Financial Year:</span>
+                <span class="fy-badge">2024-25 ▾</span>
+            </div>
+            <div class="action-btn-group">
+                <button class="btn-tool gen">⚡ Generate All</button>
+                <button class="btn-tool json">JSON All</button>
+                <button class="btn-tool excel">Excel All</button>
+                <button class="btn-tool pdf">Summary PDF All</button>
+            </div>
+        </div>
+
+        <div class="table-area">
+            <table class="styled-table">
+                <thead>
+                    <tr>
+                        <th>Period</th>
+                        <th>GSTR-3B Status</th>
+                        <th>GSTR-1 Status</th>
+                        <th>One-Click Export Options</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>March 2025</strong></td>
+                        <td><span class="badge-filed">✓ Filed</span></td>
+                        <td><span class="badge-filed">✓ Filed</span></td>
+                        <td>
+                            <div class="btn-matrix-group">
+                                <span class="btn-mat pdf">Download PDF</span>
+                                <span class="btn-mat json">JSON</span>
+                                <span class="btn-mat excel">Excel</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>February 2025</strong></td>
+                        <td><span class="badge-filed">✓ Filed</span></td>
+                        <td><span class="badge-filed">✓ Filed</span></td>
+                        <td>
+                            <div class="btn-matrix-group">
+                                <span class="btn-mat pdf">Download PDF</span>
+                                <span class="btn-mat json">JSON</span>
+                                <span class="btn-mat excel">Excel</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>January 2025</strong></td>
+                        <td><span class="badge-filed">✓ Filed</span></td>
+                        <td><span class="badge-filed">✓ Filed</span></td>
+                        <td>
+                            <div class="btn-matrix-group">
+                                <span class="btn-mat pdf">Download PDF</span>
+                                <span class="btn-mat json">JSON</span>
+                                <span class="btn-mat excel">Excel</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>December 2024</strong></td>
+                        <td><span class="badge-filed">✓ Filed</span></td>
+                        <td><span class="badge-filed">✓ Filed</span></td>
+                        <td>
+                            <div class="btn-matrix-group">
+                                <span class="btn-mat pdf">Download PDF</span>
+                                <span class="btn-mat json">JSON</span>
+                                <span class="btn-mat excel">Excel</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>November 2024</strong></td>
+                        <td><span class="badge-filed">✓ Filed</span></td>
+                        <td><span class="badge-filed">✓ Filed</span></td>
+                        <td>
+                            <div class="btn-matrix-group">
+                                <span class="btn-mat pdf">Download PDF</span>
+                                <span class="btn-mat json">JSON</span>
+                                <span class="btn-mat excel">Excel</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="window-footer">
+            <div>&copy; 2026 KasyHQ. All Rights Reserved.</div>
+            <div class="footer-links">
+                <span>Privacy Policy</span>
+                <span>Terms</span>
+                <span>kasyhq.com</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer-note">
+        ReturnPilot is an independent tool by KasyHQ. 100% Client-Side In-Memory Processing.
+    </div>
+</body>
+</html>

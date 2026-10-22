@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReturnPilot Test Lab — 2026 Native Engine</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #131c2e;
+      --card-border: #1e293b;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --success: #10b981;
+      --success-hover: #059669;
+      --warning: #f59e0b;
+      --purple: #8b5cf6;
+      --purple-hover: #7c3aed;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      width: 580px;
+      min-height: 640px;
+      padding: 16px;
+      overflow-x: hidden;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 14px;
+    }
+    .brand { font-size: 16px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      background: rgba(37, 99, 235, 0.2);
+      color: #60a5fa;
+      border: 1px solid rgba(37, 99, 235, 0.4);
+    }
+    .session-bar {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 14px;
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+    .input-group label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .input-group input, .input-group select {
+      width: 100%;
+      background: #0b1120;
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      color: #fff;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      outline: none;
+    }
+    .input-group input:focus, .input-group select:focus {
+      border-color: var(--primary);
+    }
+    /* Tabs */
+    .tabs-nav {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 8px;
+    }
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .tab-btn:hover { color: #fff; background: rgba(255,255,255,0.05); }
+    .tab-btn.active {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Return Cards */
+    .action-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .action-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .action-card.full-width { grid-column: 1 / -1; }
+    .action-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    .action-desc { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+    .dl-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: none;
+      padding: 9px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      color: #fff;
+      transition: background 0.15s;
+    }
+    .btn-pdf { background: #dc2626; }
+    .btn-pdf:hover { background: #b91c1c; }
+    .btn-excel { background: #059669; }
+    .btn-excel:hover { background: #047857; }
+    .btn-json { background: #4f46e5; }
+    .btn-json:hover { background: #4338ca; }
+    .btn-purple { background: var(--purple); }
+    .btn-purple:hover { background: var(--purple-hover); }
+
+    /* Console Log Box */
+    .console-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .console-header {
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .status-badge {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .status-idle { background: rgba(148, 163, 184, 0.2); color: #94a3b8; }
+    .status-busy { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+    .status-success { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .status-error { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+    .log-terminal {
+      background: #040711;
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      padding: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      color: #38bdf8;
+      max-height: 140px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      line-height: 1.45;
+    }
+  </style>
+  <script src="../lib/pdfmake.min.js"></script>
+  <script src="../lib/vfs_fonts.js"></script>
+  <script src="../lib/fflate.js"></script>
+  <script src="../core/xlsx-builder.js"></script>
+  <script src="../core/consolidated-gstr3b-builder.js"></script>
+  <script src="../core/consolidated-purchase-builder.js"></script>
+  <script src="../core/consolidated-sales-builder.js"></script>
+  <script src="../core/gstr2b-docdef-builder.js"></script>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="brand">
+      <span>🧪 ReturnPilot Test Lab</span>
+    </div>
+    <div class="badge">2026 Native Trigger Engine</div>
+  </div>
+
+  <!-- Session Config Bar -->
+  <div class="session-bar">
+    <div class="input-group">
+      <label>GSTIN</label>
+      <input type="text" id="inputGstin" placeholder="22AAIFT4081E1ZE" value="22AAIFT4081E1ZE" maxlength="15">
+    </div>
+    <div class="input-group">
+      <label>Financial Year</label>
+      <select id="selectFinYear">
+        <option value="2025-26" selected>2025-26</option>
+        <option value="2024-25">2024-25</option>
+        <option value="2023-24">2023-24</option>
+      </select>
+    </div>
+    <div class="input-group">
+      <label>Return Period</label>
+      <select id="selectPeriod">
+        <option value="042025" selected>April (042025)</option>
+        <option value="052025">May (052025)</option>
+        <option value="062025">June (062025)</option>
+        <option value="072025">July (072025)</option>
+        <option value="082025">August (082025)</option>
+        <option value="092025">September (092025)</option>
+        <option value="102025">October (102025)</option>
+        <option value="112025">November (112025)</option>
+        <option value="122025">December (122025)</option>
+        <option value="012026">January (012026)</option>
+        <option value="022026">February (022026)</option>
+        <option value="032026">March (032026)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Tab Navigation -->
+  <div class="tabs-nav">
+    <button class="tab-btn active" data-tab="tab-3b">Form GSTR-3B</button>
+    <button class="tab-btn" data-tab="tab-2b">Form GSTR-2B</button>
+    <button class="tab-btn" data-tab="tab-1">Form GSTR-1</button>
+    <button class="tab-btn" data-tab="tab-bulk" style="color:#fbbf24;">🚀 Bulk FY Downloader</button>
+    <button class="tab-btn" data-tab="tab-benchmarks">⚡ Proof & Benchmarks</button>
+  </div>
+
+  <!-- TAB 1: GSTR-3B -->
+  <div id="tab-3b" class="tab-content active">
+    <div class="action-grid">
+      <div class="action-card">
+        <div>
+          <div class="action-title">📄 GSTR-3B Official PDF</div>
+          <div class="action-desc">Direct active-tab Angular scope hook. Generates official GSTN PDF in memory.</div>
+        </div>
+        <button id="btnDownload3bPdf" class="dl-btn btn-pdf">Download Official PDF</button>
+      </div>
+
+      <div class="action-card">
+        <div>
+          <div class="action-title">📊 7-Sheet Custom Excel</div>
+          <div class="action-desc">Consolidated Master with Net Credit Note 3B-1-2B Audit Reconciliation.</div>
+        </div>
+        <button id="btnDownload3bExcel" class="dl-btn btn-excel">Download Custom Excel</button>
+      </div>
+
+      <div class="action-card full-width">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div class="action-title">📦 GSTR-3B Raw JSON Payload</div>
+            <div class="action-desc">Direct authenticated REST API fetch with session cookie bridging.</div>
+          </div>
+          <button id="btnDownload3bJson" class="dl-btn btn-json" style="width:200px;">Download Raw JSON</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2: GSTR-2B -->
+  <div id="tab-2b" class="tab-content">
+    <div class="action-grid">
+      <div class="action-card">
+        <div>
+          <div class="action-title">⚡ GSTR-2B Official PDF (Direct Engine)</div>
+          <div class="action-desc">Direct in-memory compiler via <code>pdfMake</code> & <code>docDef</code>. Zero iframes, downloads in &lt;0.5s.</div>
+        </div>
+        <button id="btnDownload2bPdf" class="dl-btn btn-pdf">⚡ Download Official PDF (&lt;0.5s)</button>
+      </div>
+
+      <div class="action-card">
+        <div>
+          <div class="action-title">🏛️ GSTR-2B Official PDF (Portal Bridge)</div>
+          <div class="action-desc">Original portal Angular/Ivy engine inside iframe bridge with base64 stream capture.</div>
+        </div>
+        <button id="btnDownload2bPdfBridge" class="dl-btn btn-purple">🏛️ Download Portal PDF (Bridge)</button>
+      </div>
+
+      <div class="action-card">
+        <div>
+          <div class="action-title">⚡ Official Portal 2B Excel (Direct)</div>
+          <div class="action-desc">Multi-sheet OpenXML Excel compiled in memory via <code>fflate</code>. Matches portal layout.</div>
+        </div>
+        <button id="btnDownload2bExcelPortal" class="dl-btn btn-excel">⚡ Download Portal Excel (&lt;0.5s)</button>
+      </div>
+
+      <div class="action-card">
+        <div>
+          <div class="action-title">🏛️ Portal Native 2B Excel (Bridge)</div>
+          <div class="action-desc">Hooks GST Portal's live SheetJS engine in iframe and streams output through privileged download.</div>
+        </div>
+        <button id="btnDownload2bExcelBridge" class="dl-btn btn-purple">🏛️ Download Portal Excel (Bridge)</button>
+      </div>
+
+      <div class="action-card">
+        <div>
+          <div class="action-title">📊 Consolidated 2B Excel</div>
+          <div class="action-desc">Multi-period purchase register with invoice-level ITC availability & CDNR netting.</div>
+        </div>
+        <button id="btnDownload2bExcelCustom" class="dl-btn btn-excel">Download Custom Excel</button>
+      </div>
+
+      <div class="action-card">
+        <div>
+          <div class="action-title">📦 GSTR-2B Raw JSON Payload</div>
+          <div class="action-desc">Direct fetch from <code>gstr2b.gst.gov.in/auth/api/gstr2b/getjson</code>.</div>
+        </div>
+        <button id="btnDownload2bJson" class="dl-btn btn-json">Download Raw JSON</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 3: GSTR-1 -->
+  <div id="tab-1" class="tab-content">
+    <div class="action-grid">
+      <div class="action-card">
+        <div>
+          <div class="action-title">📄 GSTR-1 Official PDF</div>
+          <div class="action-desc">Direct AngularJS Dependency Injection trigger. Bypasses DOM button scraping.</div>
+        </div>
+        <button id="btnDownload1Pdf" class="dl-btn btn-pdf">Download Official PDF</button>
+      </div>
+
+      <div class="action-card">
+        <div>
+          <div class="action-title">📊 Consolidated Sales Excel</div>
+          <div class="action-desc">In-memory OpenXML builder with B2B, B2CL, B2CS, CDNR, EXP & Rate Matrix.</div>
+        </div>
+        <button id="btnDownload1Excel" class="dl-btn btn-excel">Download Sales Excel</button>
+      </div>
+
+      <div class="action-card full-width">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div class="action-title">📦 GSTR-1 Summary JSON Payload</div>
+            <div class="action-desc">Direct fetch from <code>return.gst.gov.in/returns/auth/api/gstr1/summary</code>.</div>
+          </div>
+          <button id="btnDownload1Json" class="dl-btn btn-json" style="width:200px;">Download Raw JSON</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: BULK FY DOWNLOADER -->
+  <div id="tab-bulk" class="tab-content">
+    <div class="action-card full-width" style="margin-bottom:12px;">
+      <div class="action-title">🚀 Fault-Tolerant Bulk FY Downloader</div>
+      <div class="action-desc">
+        Sequentially queries all 12 months for the selected Financial Year. If any month is <b>NIL</b>, <b>Unfiled</b>, or has <b>No Records</b>, the pipeline gracefully logs the status and <b>automatically continues to the next month</b> without stopping or throwing errors.
+      </div>
+
+      <div style="margin-top:10px; display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+        <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" id="chkBulk3bJson" checked> GSTR-3B Raw JSON
+        </label>
+        <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" id="chkBulk2bJson" checked> GSTR-2B Raw JSON
+        </label>
+        <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" id="chkBulk1Json" checked> GSTR-1 Raw JSON
+        </label>
+        <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" id="chkBulk2bExcel"> GSTR-2B Purchase Excel
+        </label>
+        <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" id="chkBulk2bPdf"> GSTR-2B Official PDF
+        </label>
+        <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" id="chkBulk3bPdf"> GSTR-3B Official PDF
+        </label>
+      </div>
+
+      <div style="margin-top:14px; display:flex; gap:10px; align-items:center;">
+        <button id="btnStartBulkDownload" class="dl-btn btn-excel" style="flex:1; padding:10px;">
+          ⚡ Start Full Year Bulk Download
+        </button>
+        <button id="btnStopBulkDownload" class="dl-btn" style="background:#475569; display:none;">
+          Stop
+        </button>
+      </div>
+
+      <!-- Live Progress Bar -->
+      <div id="bulkProgressContainer" style="display:none; margin-top:12px;">
+        <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px;">
+          <span id="bulkProgressText">Processing Month 1 of 12...</span>
+          <span id="bulkProgressPct">0%</span>
+        </div>
+        <div style="width:100%; height:6px; background:#1e293b; border-radius:3px; overflow:hidden;">
+          <div id="bulkProgressBar" style="width:0%; height:100%; background:#10b981; transition:width 0.2s;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 4: BENCHMARKS & CLAIMS -->
+  <div id="tab-benchmarks" class="tab-content">
+    <div class="action-grid">
+      <div class="action-card full-width">
+        <div class="action-title">⚡ 2026 Architecture Proof Suite</div>
+        <div class="action-desc">Runs isolated tests inside <code>chrome.offscreen</code> to verify execution speed, memory reduction, and DOM isolation.</div>
+        <div style="display:flex; gap:10px; margin-top:8px;">
+          <button id="btnBenchClaim1" class="dl-btn btn-purple" style="flex:1;">1. AngularJS DI Test</button>
+          <button id="btnBenchClaim2" class="dl-btn btn-purple" style="flex:1;">2. Binary vs Base64</button>
+          <button id="btnBenchClaim3" class="dl-btn btn-purple" style="flex:1;">3. Ivy DocDef Hook</button>
+          <button id="btnBenchAll" class="dl-btn btn-excel" style="flex:1.2;">⚡ Run All</button>
+        </div>
+      </div>
+    </div>
+    <div id="benchResultsBox" style="margin-bottom:12px;"></div>
+  </div>
+
+  <!-- Console Log Terminal -->
+  <div class="console-card">
+    <div class="console-header">
+      <span>Execution Console</span>
+      <span id="logStatus" class="status-badge status-idle">Ready</span>
+    </div>
+    <div id="logOutput" class="log-terminal">[Ready] ReturnPilot Test Lab initialized. Select return period and download.</div>
+  </div>
+
+  <script src="test-dashboard.js"></script>
+</body>
+</html>

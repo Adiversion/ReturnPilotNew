@@ -1,0 +1,186 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   ReturnPilot — Side Panel UI Overrides  (popup/sidepanel-overrides.css)
+   Auto-injected by scripts/sync-sidepanel-html.js after every build sync.
+   Backend (popup.js) is shared; only visual/layout rules live here.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Frame: fills Chrome's side panel host ─────────────────────────── */
+html, body {
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+}
+body {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100vh !important;
+    overflow-x: hidden !important;
+    overflow-y: hidden !important;
+    zoom: 1 !important;
+}
+
+/* ── 2. Layout: navbar on top, content fills below ───────────────────── */
+#workspace {
+    flex-direction: column !important;
+    gap: 0 !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+}
+.app-layout {
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+}
+.main-content {
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
+}
+
+/* ── 3. Navbar: horizontal scrollable tab strip ───────────────────────── */
+.navbar {
+    height: 36px !important;
+    flex-shrink: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none !important;
+}
+.navbar::-webkit-scrollbar { display: none; }
+.navbar-nav { flex-wrap: nowrap !important; gap: 0 !important; }
+.navbar-section-label,
+.navbar-divider             { display: none !important; }
+.navbar-tab                 { padding: 0 8px !important; }
+.navbar-tab-title           { font-size: 10.5px !important; }
+
+/* ── 4. Topbar: wraps to 2 rows — Notice Radar / Refresh always visible ─ */
+.topbar {
+    flex-wrap: wrap !important;
+    height: auto !important;
+    padding: 5px 8px !important;
+    gap: 4px !important;
+    align-items: center !important;
+}
+.topbar-left {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+}
+#businessName {
+    font-size: 13px !important;
+}
+.topbar-right {
+    flex: 0 0 auto !important;   /* never shrink; always fully visible */
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+}
+
+/* ── 5. Toolbar: wraps to 2 rows — action buttons always visible ─────── */
+/*
+   Wide panel:   [FY 2026-27 ▾]  ············  [Cash & Credit Ledger][JSON All][PDF All]
+   Narrow panel: [FY 2026-27 ▾]
+                 [Cash & Credit Ledger][JSON All][PDF All]
+*/
+.toolbar {
+    flex-wrap: wrap !important;
+    height: auto !important;
+    padding: 4px 6px !important;
+    gap: 4px !important;
+    align-items: center !important;
+}
+.toolbar-left {
+    flex: 0 0 auto !important;
+}
+.toolbar-actions {
+    flex: 0 0 auto !important;   /* never shrink — buttons always fully visible */
+    flex-wrap: nowrap !important;
+    gap: 3px !important;
+    margin-left: auto !important;
+}
+.bulk-btn {
+    flex-shrink: 0 !important;
+    font-size: 10px !important;
+    padding: 0 6px !important;
+}
+/* Short "FY" label in narrow panel */
+.fy-label-full  { display: none !important; }
+.fy-label-short { display: inline !important; }
+
+/* ── 6. Returns card: horizontal scroll ──────────────────────────────── */
+.returns-card {
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+}
+
+/* ── 7. Table: auto-layout — columns size from content ───────────────── */
+.rt-table {
+    table-layout: auto !important;
+    width: max-content !important;
+    min-width: 100% !important;
+}
+
+/* Release all fixed column widths; set only sensible minimums */
+.rt-table-standard th.rt-col-month,
+.rt-table-standard td.rt-month,
+.rt-table-with-cb  th.rt-col-month,
+.rt-table-with-cb  td.rt-month {
+    width: auto !important;
+    min-width: 80px !important;
+    max-width: none !important;
+    white-space: nowrap !important;
+}
+.rt-table-standard th.rt-col-filing,
+.rt-table-standard td.rt-status-filing,
+.rt-table-with-cb  th.rt-col-filing,
+.rt-table-with-cb  td.rt-status-filing {
+    width: auto !important;
+    min-width: 80px !important;
+    max-width: none !important;
+}
+.rt-table-standard th.rt-col-ledger,
+.rt-table-standard td.rt-status-ledger,
+.rt-table-with-cb  th.rt-col-ledger,
+.rt-table-with-cb  td.rt-status-ledger {
+    width: auto !important;
+    min-width: 80px !important;
+    max-width: none !important;
+}
+/* Checkbox stays narrow */
+.rt-table-with-cb th.rt-cb-th,
+.rt-table-with-cb td.rt-cb-td {
+    width: 28px !important;
+    min-width: 28px !important;
+    max-width: 28px !important;
+}
+
+/* ── 8. Actions column: sticky to right edge ─────────────────────────── */
+/* `contain: layout` on tr breaks position:sticky — reduce to style only */
+.rt-table tbody tr {
+    contain: style !important;
+}
+.rt-table th.rt-col-actions,
+.rt-table td.rt-actions-cell {
+    position: sticky !important;
+    right: 0 !important;
+    z-index: 3 !important;
+    min-width: 86px !important;
+    width: auto !important;
+    background: #ffffff !important;
+    box-shadow: -1px 0 0 #e2e8f0 !important;
+    padding-right: 6px !important;
+}
+.rt-table thead th.rt-col-actions {
+    background: #f1f5f9 !important;
+    z-index: 4 !important;
+}
+
+/* ── 9. Typography: tighter for the narrow panel ─────────────────────── */
+.rt-table thead th { padding: 5px 6px !important; font-size: 8.5px !important; }
+.rt-table tbody td { padding: 3px 6px !important; font-size: 10.5px !important; height: 32px !important; }
+.rt-table tbody tr { height: 32px !important; contain-intrinsic-size: auto 32px !important; }
+.rt-btn            { padding: 2px 6px !important; font-size: 9.5px !important; height: 22px !important; }
+.rt-status-type    { font-size: 10px !important; padding: 1px 6px !important; }
+
+/* ── 10. user-plan-bar: Chrome panel header already shows logo ────────── */
+.user-plan-brand .logo { display: none !important; }
+.user-plan-bar         { padding: 0 8px !important; }

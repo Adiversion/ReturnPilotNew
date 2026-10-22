@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Production builds
+dist/
+ReturnPilot-v4.0-production.zip
+*.zip
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs & temp
+*.log
+*.rar
+*LOGS.txt
+_metadata/
+.agents/
+ReturnPilot-v*/
+last chat*.txt
+*api.txt
+gstr2x_*.json
+returns_*.json
+*CONSOLE SCRIPT*.txt
+*json format*.txt
+gstr3b_process_log_*
+*file name*.txt
+
+# Test artifacts
+tests/test_downloads/
+tests/reports/backtest_report_*.md
+__pycache__/
+*.pyc

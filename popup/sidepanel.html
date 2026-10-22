@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en" class="rp-view-sidepanel">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReturnPilot - GST Return Downloader</title>
+    <style>
+        /* ── Popup base size (1080p+). JS in scripts.js overrides for smaller screens. ── */
+        html {
+            width: 760px;
+            height: 600px;
+            background: #ffffff;
+            overflow: hidden;
+        }
+        body {
+            width: 760px;
+            height: 600px;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            background: #ffffff;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+
+        /* Side Panel: let the panel fill its host frame */
+        html.rp-view-sidepanel {
+            width: 100% !important;
+            height: 100% !important;
+            max-width: 100% !important;
+            overflow: auto !important;
+        }
+        html.rp-view-sidepanel body {
+            width: 100% !important;
+            height: 100vh !important;
+            max-width: 100% !important;
+            zoom: 1 !important;
+        }
+    </style>
+    <link rel="stylesheet" href="../assets/styles/app.css">
+    <link rel="stylesheet" href="sidepanel-overrides.css">
+</head>
+<body class="rp-view-sidepanel">
+
+    <div class="user-plan-bar">
+        <div class="user-plan-brand">
+            <div class="logo">
+                <img src="../assets/icons/icon-32.png" alt="" class="logo-img" aria-hidden="true">
+                ReturnPilot
+            </div>
+            <div id="userPlanBadge" class="plan-badge free-badge" style="visibility: hidden;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+                <span id="userPlanText">Free Plan</span>
+            </div>
+        </div>
+        <div class="user-plan-actions">
+            <button id="btnGoogleAuth" type="button" class="btn-plan-outline" title="Sign in with Google Account" hidden>
+                <svg class="btn-google-icon" width="14" height="14" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                <span id="btnGoogleAuthText">Sign in with Google</span>
+            </button>
+            <!-- btnSignOut kept in DOM for compatibility; sign-out is also exposed in the profile dropdown -->
+            <button id="btnSignOut" type="button" class="btn-plan-outline btn-sign-out" title="Log Out of Google Account" hidden>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                <span>Log Out</span>
+            </button>
+            <button id="btnUpgradePremium" type="button" class="btn-plan-solid" title="Upgrade to Premium" hidden>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                <span>Upgrade to Premium</span>
+            </button>
+
+            <!-- Live Diagnostics & Logs Button (Dev Only - Hidden from End Users) -->
+            <button id="btnLiveLogs" type="button" class="btn-plan-outline btn-live-logs" title="Live Diagnostics, Telemetry & Download Logs" aria-label="Toggle live logs and diagnostics" style="display:none;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                <span>Live Logs</span>
+            </button>
+
+            <!-- Two-Way Surface Switcher (Extension Window <-> Side Panel) -->
+            <button id="btnSurfaceToggle" type="button" class="btn-plan-outline btn-surface-toggle" title="Switch between Extension Window and Side Panel" aria-label="Toggle display mode">
+                <svg id="surfaceToggleIconSide" width="12" height="12" style="display:none;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                    <line x1="15" y1="3" x2="15" y2="21"></line>
+                </svg>
+                <svg id="surfaceToggleIconWindow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;">
+                    <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                    <line x1="3" y1="9" x2="21" y2="9"></line>
+                </svg>
+                <span id="surfaceToggleText">Normal Extension</span>
+            </button>
+
+            <!-- ── Profile Pill Trigger (shown when signed in) ── -->
+            <button id="btnProfileTrigger" type="button" class="btn-profile-trigger" aria-label="Account details" hidden aria-haspopup="true" aria-expanded="false">
+                <span id="profileTriggerAvatar" class="profile-trigger-avatar" aria-hidden="true">A</span>
+                <span id="profileTriggerName" class="profile-trigger-name">Account</span>
+                <svg class="profile-trigger-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- ── Profile Dropdown Card ── -->
+    <div id="profileDropdown" class="profile-dropdown" hidden role="dialog" aria-label="Account details">
+        <!-- Header: avatar + name + email -->
+        <div class="pd-header">
+            <div id="pdAvatar" class="pd-avatar" aria-hidden="true">A</div>
+            <div class="pd-identity">
+                <div id="pdName" class="pd-name">Account</div>
+                <div id="pdEmail" class="pd-email">—</div>
+            </div>
+        </div>
+
+        <!-- Dedicated Subscription Status Micro-Card -->
+        <div id="pdPlanCard" class="pd-plan-card pd-plan-card-free">
+            <div class="pd-plan-card-header">
+                <div class="pd-plan-card-left">
+                    <span class="pd-plan-icon">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="#f59e0b" stroke="none" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                    </span>
+                    <span id="pdPlanLabel" class="pd-plan-label">Free Plan</span>
+                </div>
+                <span id="pdPlanStatus" class="pd-plan-status-pill pd-status-free">Free</span>
+            </div>
+            <div id="pdExpiryRow" class="pd-expiry-row" hidden>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                <span id="pdExpiry" class="pd-expiry-text">Expires: —</span>
+            </div>
+        </div>
+
+        <!-- Surface View Preference Selector (Two-Way) -->
+        <div class="pd-surface-box">
+            <div class="pd-section-label">Default Display Mode</div>
+            <div class="pd-surface-grid" role="radiogroup" aria-label="Default Display Mode">
+                <button type="button" class="pd-surface-btn" id="pdViewBtnPopup" data-mode="popup" title="Standard Chrome toolbar extension popup">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+                    <span>Normal Extension</span>
+                </button>
+                <button type="button" class="pd-surface-btn active" id="pdViewBtnSidepanel" data-mode="sidepanel" title="Dock in Chrome Side Panel alongside portal">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+                    <span>Side Panel</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Menu Items -->
+        <div class="pd-menu">
+            <a id="pdBtnReview" href="https://chromewebstore.google.com/detail/returnpilot-%E2%80%94-gst-return/aonckbcabfdbpamocmihkfcjnpoacbbe/reviews" target="_blank" rel="noopener noreferrer" class="pd-menu-item">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="#f59e0b" stroke="none" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                <span>Rate on Chrome Web Store</span>
+            </a>
+            <a id="pdBtnFeedback" href="https://chromewebstore.google.com/detail/returnpilot-%E2%80%94-gst-return/aonckbcabfdbpamocmihkfcjnpoacbbe/reviews" target="_blank" rel="noopener noreferrer" class="pd-menu-item">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                <span>Suggestions & Feedback</span>
+            </a>
+            <a id="pdBtnShareWhatsApp" href="#" class="pd-menu-item" title="Share ReturnPilot with colleagues via WhatsApp">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                <span>Share via WhatsApp</span>
+            </a>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="pd-footer">
+            <button id="pdBtnLogout" type="button" class="pd-logout-btn">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                <span>Log Out</span>
+            </button>
+        </div>
+    </div>
+
+    <div id="msgOtherWebsite" class="sys-state-screen" hidden>
+        <div class="state-container">
+            <div class="state-badge alert-error">Portal Restriction</div>
+            <h1 class="state-title">GST Portal Required</h1>
+            <p class="state-desc">
+                ReturnPilot executes local secure data requests directly within the active portal session. To view data, navigate to the Goods and Services Tax portal (gst.gov.in).
+            </p>
+            <button id="navToGstBtn" type="button" class="btn-state-action">Launch gst.gov.in</button>
+        </div>
+        <div class="state-watermark">System Active | ReturnPilot</div>
+    </div>
+
+    <div id="msgNotOnReturnDashboard" class="sys-state-screen" hidden>
+        <div class="state-container">
+            <div class="state-badge alert-warn">Session Navigation Required</div>
+            <h1 class="state-title">Go to Return Dashboard</h1>
+            <p class="state-desc">
+                You are currently on the Services portal page. Please click the button below to open the <strong>Return Dashboard</strong> and initialize ReturnPilot.
+            </p>
+            <button id="navToReturnDashboardBtn" type="button" class="btn-state-action">Go to Return Dashboard</button>
+        </div>
+        <div class="state-watermark">System Active | ReturnPilot</div>
+    </div>
+
+    <div id="msgLoginRequired" class="sys-state-screen" hidden>
+        <div class="state-hero-wrapper">
+            <div class="hero-illustration">
+                <svg width="270" height="167" viewBox="0 0 340 210" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <radialGradient id="blue-silhouette-glow" cx="50%" cy="50%" r="50%">
+                            <stop offset="0%" stop-color="#2563eb" stop-opacity="0.30"/>
+                            <stop offset="55%" stop-color="#60a5fa" stop-opacity="0.12"/>
+                            <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+                        </radialGradient>
+                    </defs>
+
+                    <!-- Blue Blur Silhouette Glow behind shield -->
+                    <circle cx="170" cy="100" r="105" fill="url(#blue-silhouette-glow)"/>
+
+                    <!-- Background Dot Grid (Upper Left 4x3) -->
+                    <g opacity="0.55">
+                        <circle cx="28" cy="22" r="1.5" fill="#60a5fa"/>
+                        <circle cx="42" cy="22" r="1.5" fill="#60a5fa"/>
+                        <circle cx="56" cy="22" r="1.5" fill="#60a5fa"/>
+                        <circle cx="70" cy="22" r="1.5" fill="#60a5fa"/>
+                        <circle cx="28" cy="36" r="1.5" fill="#60a5fa"/>
+                        <circle cx="42" cy="36" r="1.5" fill="#60a5fa"/>
+                        <circle cx="56" cy="36" r="1.5" fill="#60a5fa"/>
+                        <circle cx="70" cy="36" r="1.5" fill="#60a5fa"/>
+                        <circle cx="28" cy="50" r="1.5" fill="#60a5fa"/>
+                        <circle cx="42" cy="50" r="1.5" fill="#60a5fa"/>
+                        <circle cx="56" cy="50" r="1.5" fill="#60a5fa"/>
+                        <circle cx="70" cy="50" r="1.5" fill="#60a5fa"/>
+                    </g>
+
+                    <!-- Background Dot Grid (Right Middle 4x3) -->
+                    <g opacity="0.55">
+                        <circle cx="270" cy="80" r="1.5" fill="#60a5fa"/>
+                        <circle cx="284" cy="80" r="1.5" fill="#60a5fa"/>
+                        <circle cx="298" cy="80" r="1.5" fill="#60a5fa"/>
+                        <circle cx="312" cy="80" r="1.5" fill="#60a5fa"/>
+                        <circle cx="270" cy="94" r="1.5" fill="#60a5fa"/>
+                        <circle cx="284" cy="94" r="1.5" fill="#60a5fa"/>
+                        <circle cx="298" cy="94" r="1.5" fill="#60a5fa"/>
+                        <circle cx="312" cy="94" r="1.5" fill="#60a5fa"/>
+                        <circle cx="270" cy="108" r="1.5" fill="#60a5fa"/>
+                        <circle cx="284" cy="108" r="1.5" fill="#60a5fa"/>
+                        <circle cx="298" cy="108" r="1.5" fill="#60a5fa"/>
+                        <circle cx="312" cy="108" r="1.5" fill="#60a5fa"/>
+                    </g>
+                    <!-- Dashed Orbit Circle from index.html -->
+                    <circle cx="170" cy="95" r="85" stroke="#c9d5f2" stroke-width="1.5" stroke-dasharray="4 4" fill="none"/>
+
+                    <!-- Sparkle Stars from index.html -->
+                    <path d="M 73 52 L 75 46 L 77 52 L 83 54 L 77 56 L 75 62 L 73 56 L 67 54 Z" fill="#6f8cf0"/>
+                    <path d="M 273 45 L 275 39 L 277 45 L 283 47 L 277 49 L 275 55 L 273 49 L 267 47 Z" fill="#6f8cf0"/>
+
+                    <!-- 3D Shield Silhouette matching 3d_shield_reference.png 100% -->
+                    <!-- Outer Dark 3D Rim Frame (Peak M 170 10, Winged Shoulders Q 126 32 88 44, Pointed Base C 135 188 170 200) -->
+                    <path d="M 170 10 Q 126 32 88 44 C 84 96 88 120 98 144 C 114 172 144 190 170 200 C 196 190 226 172 242 144 C 252 120 256 96 252 44 Q 214 32 170 10 Z" fill="#182848" stroke="#2451e0" stroke-width="2"/>
+
+                    <!-- Inner Bevel Rim Border -->
+                    <path d="M 170 18 Q 130 38 96 49 C 93 94 96 116 105 138 C 119 163 146 179 170 188 C 194 179 221 163 235 138 C 244 116 247 94 244 49 Q 210 38 170 18 Z" fill="#ffffff"/>
+
+                    <!-- Left Half Shield Fill (#dde6fb) -->
+                    <path d="M 170 22 Q 132 40 100 50 C 97 93 100 114 108 134 C 121 157 147 172 170 182 V 22 Z" fill="#dde6fb"/>
+
+                    <!-- Right Half Shield Fill (#c7d6f6) -->
+                    <path d="M 170 22 Q 208 40 240 50 C 243 93 240 114 232 134 C 219 157 193 172 170 182 V 22 Z" fill="#c7d6f6"/>
+
+                    <!-- Blue Padlock from index.html -->
+                    <!-- Shackle stroke=#7fa0f0 stroke-width=8 -->
+                    <path d="M 150 95 V 78 C 150 67 159 58 170 58 C 181 58 190 67 190 78 V 95" stroke="#7fa0f0" stroke-width="8" fill="none" stroke-linecap="round"/>
+                    <!-- Rounded Blue Lock Body fill=#2451e0 -->
+                    <rect x="135" y="95" width="70" height="58" rx="9" fill="#2451e0"/>
+                    <!-- Pure White Keyhole Circle & Slot -->
+                    <circle cx="170" cy="118" r="7" fill="#ffffff"/>
+                    <rect x="166.5" y="122" width="7" height="13" rx="2.5" fill="#ffffff"/>
+
+                    <!-- Floating White GST Badge Card Overlapping Lower Right (Matching index.html) -->
+                    <g transform="translate(182, 106)">
+                        <rect width="92" height="52" rx="9" fill="#ffffff" filter="drop-shadow(0px 8px 18px rgba(30, 50, 100, 0.14))" stroke="#e2e8f0" stroke-width="1"/>
+                        
+                        <!-- Official Blue Emblem of India Vector Graphic -->
+                        <g transform="translate(11, 12)">
+                            <path d="M10 2L3 6v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V6l-7-4z" fill="#2451e0"/>
+                            <path d="M10 5L5 8.2v4.8c0 4.2 2.8 8.1 7 9.1 4.2-1 7-4.9 7-9.1V8.2L12 5z" fill="#ffffff" fill-opacity="0.2"/>
+                            <circle cx="10" cy="12" r="3.5" stroke="#ffffff" stroke-width="1.2" fill="none"/>
+                            <path d="M10 9.5v5M7.5 12h5" stroke="#ffffff" stroke-width="1.2"/>
+                        </g>
+
+                        <!-- GST Header Label & Indicator Lines -->
+                        <text x="44" y="24" font-family="Inter, sans-serif" font-size="13" font-weight="800" fill="#2451e0">GST</text>
+                        <rect x="44" y="29" width="38" height="4" rx="2" fill="#dfe4ee"/>
+                        <rect x="44" y="37" width="24" height="4" rx="2" fill="#dfe4ee"/>
+                    </g>
+                </svg>
+            </div>
+            <div class="login-required-card">
+                <div class="state-badge login-badge">
+                    <svg class="login-badge-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                    LOGIN REQUIRED
+                </div>
+                <h1 class="state-title">GST Portal Login Required</h1>
+                <div class="state-title-divider"></div>
+                <p class="state-desc">
+                    You are currently logged out or on the main portal page. Please click the button below to log in to your GST account to initialize <strong>ReturnPilot</strong>.
+                </p>
+                <button id="navToLoginBtn" type="button" class="btn-login-primary">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+                    Login
+                </button>
+                <div class="privacy-subtext">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                    Secure &bull; Encrypted &bull; Your data stays private
+                </div>
+            </div>
+        </div>
+        <div class="state-watermark">System Active | ReturnPilot</div>
+    </div>
+	
+    <div id="msgLoginPage" class="sys-state-screen login-state-screen" hidden>
+        <div class="login-card-container">
+            <div class="login-header">
+                <div class="login-icon-wrapper">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                </div>
+                <div class="login-titles">
+                    <h1 class="login-title">Quick Login &amp; Account Selector</h1>
+                    <p class="login-desc">Select an account and login to continue</p>
+                </div>
+            </div>
+
+            <div class="login-form-grid">
+                <div class="form-row search-row-container">
+                    <label class="row-label" for="loginSearchAccount">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <span>Search Account</span>
+                    </label>
+                    <div class="search-input-wrapper">
+                        <input type="text" id="loginSearchAccount" class="login-input" placeholder="Click or type to search by Name, GSTIN, User..." autocomplete="off">
+                        <div id="searchResultsDropdown" class="search-dropdown-menu" hidden></div>
+                    </div>
+                    <select id="loginSavedAccount" aria-label="Saved Account Selector" hidden><option value="">-- Select Account --</option></select>
+                </div>
+
+                <div class="form-row">
+                    <label class="row-label" for="loginUsername">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                        <span>User / PAN *</span>
+                    </label>
+                    <input type="text" id="loginUsername" class="login-input" placeholder="GST Username (Required)">
+                </div>
+
+                <div class="form-row">
+                    <label class="row-label" for="loginPassword">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                        <span>Password *</span>
+                    </label>
+                    <div class="password-wrapper">
+                        <input type="password" id="loginPassword" class="login-input" placeholder="•••••••• (Required)">
+                        <button type="button" id="loginTogglePassword" class="eye-btn" aria-label="Toggle password visibility">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="login-actions">
+                <button id="btnSaveAccount" class="btn-outline" title="Save / Update Account">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                    Save
+                </button>
+                <button id="btnImportAccounts" class="btn-outline" title="Import Bulk Accounts (CSV / Excel)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    Import CSV
+                </button>
+                <input type="file" id="csvFileInput" accept=".csv,.txt,.xlsx" hidden>
+                <button id="btnDeleteAccount" class="btn-outline btn-danger" title="Delete Selected Account">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
+                <button id="btnAutoFillLogin" class="btn-primary-solid">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                    Auto-Fill Login
+                </button>
+            </div>
+
+            <div id="login5sBanner" class="login-5s-banner" hidden></div>
+
+            <div class="login-instructions">
+                <div class="instructions-header">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                    <strong>How to use:</strong>
+                </div>
+                <ol class="instructions-list">
+                    <li>Enter credentials and click <strong>Save</strong>.</li>
+                    <li><strong>CSV Import:</strong> Column A = User ID/PAN, Column B = Password.</li>
+                    <li>Click <strong>Auto-Fill</strong> — User ID fills on portal.</li>
+                    <li>Click Continue on portal — password fills automatically.</li>
+                </ol>
+            </div>
+
+            <!-- Security footer -->
+            <div class="login-security-footer">
+                <span class="security-badge">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                    Your data is secure and encrypted
+                </span>
+                <span class="security-divider">|</span>
+                <span class="system-active-badge">
+                    <span class="status-dot"></span>
+                    System Active
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div id="premiumUpgradeModal" class="support-modal-overlay" hidden>
+        <div class="support-modal premium-upgrade-modal">
+            <button id="closePremiumModalBtn" type="button" class="support-close-btn" aria-label="Close modal">✕</button>
+            <div class="support-modal-header">
+                <span class="technical-category">⭐ Premium Feature Locked</span>
+                <h2>Upgrade to ReturnPilot Premium</h2>
+            </div>
+            <div class="support-modal-body">
+                <p class="support-text" id="premiumModalReasonText">
+                    PDF Compilation and Excel Export features require an active Premium License (₹199/month or ₹1,999/year).
+                </p>
+                <div class="premium-feature-list">
+                    <div class="prem-feature-item">
+                        <svg class="prem-feature-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span><strong>1-Click AI CAPTCHA Auto-Fill</strong> &amp; Unlimited GST Logins</span>
+                    </div>
+                    <div class="prem-feature-item">
+                        <svg class="prem-feature-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span><strong>Annual Combined Sales (Excel):</strong> Consolidated GSTR-1 &amp; 1A</span>
+                    </div>
+                    <div class="prem-feature-item">
+                        <svg class="prem-feature-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span><strong>Annual Combined Purchase (Excel):</strong> GSTR-2B &amp; IMS ITC Audit</span>
+                    </div>
+                    <div class="prem-feature-item">
+                        <svg class="prem-feature-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span><strong>Bulk PDF &amp; Excel for All 8 Returns:</strong> 3B, 1, 1A, 2A, 2B, IMS, 9 &amp; 9C</span>
+                    </div>
+                    <div class="prem-feature-item">
+                        <svg class="prem-feature-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span><strong>Multi-PC Cloud Sync</strong> with Instant Google Licensing</span>
+                    </div>
+                </div>
+                <div class="premium-modal-actions">
+                    <button id="btnModalPayRazorpay" class="btn-modal-primary">
+                        💳 Upgrade to Premium
+                    </button>
+                    <button id="btnModalSignIn" class="btn-modal-secondary">
+                        👤 Sign In with Google
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notice & Demand Radar Modal Area -->
+    <div id="noticeRadarModal" class="support-modal-overlay" hidden>
+        <div class="support-modal notice-radar-modal" style="width: 620px; max-width: 95%;">
+            <button id="closeNoticeRadarModalBtn" type="button" class="support-close-btn" aria-label="Close modal">✕</button>
+            <div class="support-modal-header" style="display: flex; justify-content: space-between; align-items: center; padding-right: 30px;">
+                <div>
+                    <span class="technical-category">Legal Compliance</span>
+                    <h2>Notice &amp; Demand Radar</h2>
+                </div>
+                <button id="btnOpenPortalNotices" type="button" class="btn-plan-solid" style="font-size:11px; padding:5px 14px; white-space:nowrap; margin-top: 4px;">
+                    <span>Open Portal Notices</span>
+                </button>
+            </div>
+            <div class="support-modal-body">
+                <p class="support-text" style="margin-bottom: 10px; font-size: 11px;">
+                    Monitors <strong>View Notices &amp; Orders</strong> and <strong>Case Litigation</strong> to prevent missed Show Cause Notices (SCNs), ASMT-10, and Demand Orders.
+                </p>
+                <div id="noticeRadarContent" class="notice-radar-content-area">
+                    <div class="notice-placeholder-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px; padding:20px; text-align:center; color:#64748b;">
+                        <div style="font-size:24px; margin-bottom:6px;">⏳</div>
+                        <div style="font-weight:600; color:#334155; font-size:12px; margin-bottom:4px;">Scanning Portal Notices...</div>
+                        <div style="font-size:11px;">Querying active Show Cause Notices and Scrutiny cases for this GSTIN.</div>
+                    </div>
+                </div>
+                <div class="notice-modal-actions" style="margin-top:12px; border-top:1px solid #f1f5f9; padding-top:10px;">
+                    <span id="noticeScanStatusText" style="font-size:10px; color:#64748b; font-weight:500;">Status: Ready</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Review, Feedback & Referral Modal (Middle Screen Delight Prompt) -->
+    <div id="reviewPromptModal" class="support-modal-overlay" hidden>
+        <div class="support-modal review-prompt-modal" role="dialog" aria-modal="true" aria-labelledby="reviewModalTitle">
+            <button id="closeReviewModalBtn" type="button" class="support-close-btn" aria-label="Close dialog">✕</button>
+            <div class="review-modal-content">
+                <div class="review-modal-icon-badge" aria-hidden="true">⭐</div>
+                <h2 id="reviewModalTitle" class="review-modal-title">Enjoying ReturnPilot?</h2>
+                <p class="review-modal-desc">
+                    Your rating and feedback help us improve and support fellow tax professionals and businesses across India.
+                </p>
+                <div class="review-modal-actions">
+                    <button id="btnReviewModalStore" type="button" class="btn-review-modal-primary" title="Leave a 5-star review on Chrome Web Store">
+                        ⭐ Rate 5 Stars on Chrome Web Store ↗
+                    </button>
+                    <button id="btnReviewModalFeedback" type="button" class="btn-review-modal-secondary" title="Share suggestions & feedback on Chrome Web Store">
+                        💬 Leave Feedback &amp; Suggestions ↗
+                    </button>
+                    <button id="btnReviewModalRefer" type="button" class="btn-review-modal-refer" title="Share ReturnPilot with colleagues on WhatsApp">
+                        📲 Refer a Colleague / Share on WhatsApp
+                    </button>
+                </div>
+                <div id="referSuccessToast" class="review-refer-toast" hidden>✓ Link copied to clipboard!</div>
+                <div class="review-modal-footer-hint">Click ✕ to dismiss for today</div>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="status" class="sys-msg" hidden>
+        <div class="sys-connecting-card">
+            <div class="sys-connecting-icon-wrap">
+                <div class="sys-pulse-ring"></div>
+                <img src="../assets/icons/icon-48.png" alt="" class="sys-connecting-logo" aria-hidden="true">
+            </div>
+            <div class="sys-connecting-content">
+                <span id="statusText" class="sys-connecting-title" role="status" aria-live="polite">Connecting...</span>
+                <span class="sys-connecting-subtitle">Establishing secure GST portal link</span>
+            </div>
+            <div class="sys-loader-bar" aria-hidden="true">
+                <div class="sys-loader-bar-fill"></div>
+            </div>
+        </div>
+        <div class="state-watermark">System Active | ReturnPilot</div>
+    </div>
+
+    <div id="businessInfo" hidden>
+        <div id="workspace">
+
+            <nav class="navbar" role="navigation" aria-label="GST Return Types">
+                <select id="gstReturnType" class="hidden-select" aria-hidden="true" tabindex="-1">
+                    <option value="G3B">GSTR-3B</option>
+                    <option value="G1">GSTR-1</option>
+                    <option value="G1A">GSTR-1A</option>
+                    <option value="G2A">GSTR-2A</option>
+                    <option value="G2B">GSTR-2B</option>
+                    <option value="IMS">IMS</option>
+                    <option value="G2X">TDS/TCS</option>
+                    <option value="G9">GSTR-9</option>
+                    <option value="G9C">GSTR-9C</option>
+                </select>
+
+                <div class="navbar-nav" id="sidebar-group-regular">
+                    <span class="navbar-section-label" aria-hidden="true">Returns</span>
+
+                    <div class="navbar-tab active sidebar-item" data-value="G3B" data-group="regular" role="button" tabindex="0" aria-label="GSTR-3B — Final Tax Liability">
+                        <div class="navbar-tab-title">GSTR-3B</div>
+                    </div>
+
+                    <div class="navbar-tab sidebar-item" data-value="G1" data-group="regular" role="button" tabindex="0" aria-label="GSTR-1 — Outward Supplies">
+                        <div class="navbar-tab-title">GSTR-1</div>
+                    </div>
+
+                    <div class="navbar-tab sidebar-item" data-value="G1A" data-group="regular" role="button" tabindex="0" aria-label="GSTR-1A — Outward Supplies Amendment">
+                        <div class="navbar-tab-title">GSTR-1A</div>
+                    </div>
+
+                    <div class="navbar-tab sidebar-item" data-value="G2A" data-group="regular" role="button" tabindex="0" aria-label="GSTR-2A — Auto-drafted Inward Supplies">
+                        <div class="navbar-tab-title">GSTR-2A</div>
+                    </div>
+
+                    <div class="navbar-tab sidebar-item" data-value="G2B" data-group="regular" role="button" tabindex="0" aria-label="GSTR-2B — ITC Statement">
+                        <div class="navbar-tab-title">GSTR-2B</div>
+                    </div>
+
+                    <div class="navbar-tab sidebar-item" data-value="IMS" data-group="ims" role="button" tabindex="0" aria-label="IMS - Invoice Management System">
+                        <div class="navbar-tab-title">IMS</div>
+                    </div>
+
+                    <div class="navbar-tab sidebar-item" data-value="G2X" data-group="regular" role="button" tabindex="0" aria-label="TDS/TCS — TDS and TCS Credit Received">
+                        <div class="navbar-tab-title">TDS/TCS</div>
+                    </div>
+
+                    <div class="navbar-divider" aria-hidden="true"></div>
+                    <span class="navbar-section-label" aria-hidden="true">Annual</span>
+
+                    <div class="navbar-tab sidebar-item" data-value="G9" data-group="annual" role="button" tabindex="0" aria-label="GSTR-9 — Annual Return">
+                        <div class="navbar-tab-title">GSTR-9</div>
+                    </div>
+
+                    <div class="navbar-tab sidebar-item" data-value="G9C" data-group="annual" role="button" tabindex="0" aria-label="GSTR-9C — Reconciliation Statement">
+                        <div class="navbar-tab-title">GSTR-9C</div>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="app-layout">
+                <main class="main-content" role="main">
+
+                    <header class="topbar">
+                        <div class="topbar-left">
+                            <h1 id="businessName">Loading Client Context...</h1>
+                            <div class="business-meta">
+                                <span class="meta-item">
+                                    <span class="meta-label">GSTIN</span>
+                                    <span id="businessGstin" class="meta-value mono" title="Click to copy GSTIN" style="cursor:pointer;">—</span>
+                                    <button id="copyGstinBtn" type="button" class="btn-copy-gstin" title="Copy GSTIN" aria-label="Copy GSTIN">
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                    </button>
+                                </span>
+                                <span class="meta-divider" aria-hidden="true">|</span>
+                                <span class="meta-item">
+                                    <span class="meta-label">Status</span>
+                                    <span id="taxpayerStatus" class="meta-value rt-status-type">—</span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="topbar-right" style="display:flex; align-items:center; gap:8px;">
+                            <button id="noticeRadarBtn" type="button" class="btn-notice-radar clean" title="Notice Radar: Scan for Show Cause Notices & Orders" aria-label="Notice Radar">
+                                <span class="radar-pulse-dot" style="display:none;"></span>
+                                <svg class="notice-radar-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                                <span id="noticeRadarText">Notice Radar</span>
+                            </button>
+                            <button id="refresh" class="refresh-btn" aria-label="Synchronize active portal ledgers">
+                                <span class="refresh-icon" aria-hidden="true">↻</span> Refresh
+                            </button>
+                        </div>
+                    </header>
+
+                    <div class="toolbar" role="toolbar" aria-label="Bulk operational tools">
+                        <div class="toolbar-left">
+                            <label class="toolbar-label" for="finYear"><span class="fy-label-full">Financial Year</span><span class="fy-label-short">FY</span></label>
+                            <select id="finYear" aria-label="Select financial timeline tracking slice"></select>
+                        </div>
+
+                        <div class="toolbar-actions">
+                            <div class="toolbar-group toolbar-group-primary" id="toolbar-generate-group" aria-label="Upstream file initialization tracking">
+                                <button id="btn-gen-all" class="bulk-btn btn-gen" aria-label="Initialize all data layers inside scope">
+                                    Generate All
+                                </button>
+                            </div>
+
+                            <div class="toolbar-divider" aria-hidden="true" role="separator"></div>
+
+                            <div class="toolbar-group toolbar-group-exports" id="toolbar-export-group" aria-label="Downstream data routing extractions">
+                                <button id="btn-consolidated-excel" class="bulk-btn btn-excel btn-consolidated" type="button" hidden>Excel (All Months Combined)</button>
+                                <button id="btn-cash-credit-ledger" class="bulk-btn btn-excel btn-ledger" type="button" hidden title="Download Full-Year Consolidated Cash & Credit Ledger (.xlsx)">Cash & Credit Ledger</button>
+                                <button id="btn-download-all" class="bulk-btn btn-dl">JSON All</button>
+                                <button id="btn-excel-all" class="bulk-btn btn-excel" type="button" hidden>Excel All</button>
+                                <button id="btn-pdf-summary-all" class="bulk-btn btn-pdf" type="button">Summary PDF All</button>
+                                <button id="btn-pdf-detail-all" class="bulk-btn btn-pdf-detail" type="button" hidden>Detail PDF All</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="banner-generating" class="banner-wrap" hidden>
+                        <div class="generate-banner" role="status" aria-live="polite" aria-atomic="true">
+                            GST portal is generating your return files. Please refresh in a few minutes.
+                        </div>
+                    </div>
+
+                    <div class="returns-wrapper">
+                        <div class="returns-card" role="region" aria-label="Statutory returns monitoring dashboard matrix" data-hide-pending-downloads="true">
+                            <div id="returnStatus" aria-live="polite" aria-atomic="false"></div>
+                        </div>
+                    </div>
+                    
+                    <footer class="app-footer">
+                        <div class="footer-left">
+                            <span class="footer-copyright">&copy; <span id="copyright-year">2026</span> KasyHQ. All Rights Reserved.</span>
+                        </div>
+                        <div class="footer-right">
+                            <a href="https://chromewebstore.google.com/detail/returnpilot-%E2%80%94-gst-return/aonckbcabfdbpamocmihkfcjnpoacbbe/reviews" target="_blank" rel="noopener noreferrer" class="footer-link footer-link-review" title="Rate ReturnPilot on Chrome Web Store">
+                                ⭐ Rate 5★
+                            </a>
+                            <span class="footer-dot">•</span>
+                            <a href="https://kasyhq.com/support" target="_blank" rel="noopener noreferrer" class="footer-link">
+                                Support
+                            </a>
+                            <span class="footer-dot">•</span>
+                            <a href="https://kasyhq.com/privacy" target="_blank" rel="noopener noreferrer" class="footer-link">
+                                Privacy Policy
+                            </a>
+                            <span class="footer-dot">•</span>
+                            <a href="https://kasyhq.com/terms" target="_blank" rel="noopener noreferrer" class="footer-link">
+                                Terms
+                            </a>
+                            <span class="footer-dot">•</span>
+                            <a href="https://kasyhq.com/" target="_blank" rel="noopener noreferrer" class="footer-link">
+                                kasyhq.com
+                            </a>
+                        </div>
+                    </footer>
+
+                </main>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="../security/entanglement.js" defer></script>
+    <script src="../lib/vault.js" defer></script>
+    <script src="../scripts/scripts.js" defer></script>
+    <script src="../core/logger.js" defer></script>
+    <script src="popup.js" defer></script>
+
+</body>
+</html>

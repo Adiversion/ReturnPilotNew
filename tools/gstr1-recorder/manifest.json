@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "ReturnPilot GSTR-1 Recorder",
+  "version": "0.1.0",
+  "description": "Dev tool: records GST portal DOM/API details for old, new and NIL GSTR-1 formats so the ReturnPilot engine can be implemented accurately.",
+  "permissions": [
+    "storage",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://*.gst.gov.in/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.gst.gov.in/*"
+      ],
+      "js": [
+        "content/recorder.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "content/recorder-inject.js"
+      ],
+      "matches": [
+        "https://*.gst.gov.in/*"
+      ]
+    }
+  ],
+  "action": {
+    "default_popup": "popup/recorder.html",
+    "default_title": "ReturnPilot GSTR-1 Recorder"
+  }
+}
