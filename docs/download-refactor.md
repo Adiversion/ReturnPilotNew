@@ -144,6 +144,17 @@ The coordinator cannot inspect those portal-specific facts itself.
 - HANDOFF_CONFIRMED means the adapter handoff and cleanup succeeded. It must never
   be rendered as a completed browser download without download-event evidence.
 
+## End-of-flow review: consult before the next implementation
+
+[portal-evidence-followup.md](portal-evidence-followup.md) adds evidence overlooked
+in the initial ES2015 excerpts. ES5 source exposes Read me C4–C9 identities and
+Excel refresh/multipart branches; getgenpdf responses contain r3b.gstin and
+r3b.ret_period. Do not assume Excel is cache-only or bind the wrong generateExcel
+function by name. 2B PDF headers come from userdetails while figures come from a
+separate payload, so header validation cannot establish financial consistency.
+Recorder-completed flags do not prove a browser download completed.
+No runtime changes were made for this evidence-review milestone.
+
 ## Uploaded portal evidence review
 
 Read [portal-recording-analysis.md](portal-recording-analysis.md) before adding

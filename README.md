@@ -15,6 +15,14 @@ missing. The 3B HAR includes an unredacted authentication header: sanitize evide
 and address session/history exposure before sharing it further. No raw recordings
 are used as test fixtures.
 
+**End-of-flow follow-up:** [docs/portal-evidence-followup.md](docs/portal-evidence-followup.md)
+records additional findings in the later ES5 source captures: GSTR-2B Excel Read me
+identity cells, JSON-refresh/multipart export paths, and GSTR-3B response identity
+fields. This qualifies the earlier cache-only description. Recorder “completed”
+labels are not browser download acknowledgements; source function names alone do
+not establish a callable live service. This review changes documentation only.
+
+
 
 - Phase 1 implemented: immutable jobs, shared scheduling, readiness lifecycle,
   session invalidation and cleanup safety in `engine/download-coordinator.js`.

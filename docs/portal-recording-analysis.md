@@ -37,6 +37,14 @@ Primary source references (array indices below are zero-based):
   unproven. Zero here is not an HTTP server status we should replay or interpret
   as proof of server failure.
 
+## Additional late-source evidence (read alongside this initial analysis)
+
+See [portal-evidence-followup.md](portal-evidence-followup.md). The later ES5
+capture adds Excel Read me identity cells and JSON refresh/multipart branches.
+The inner getExcelData consumer uses cache, but that does not mean all outer
+Excel download paths are cache-only. It also shows PDF metadata and financial
+figures are sourced separately. These distinctions qualify the initial review.
+
 ## GSTR-2B: data is cached before the download methods use it
 
 Recorded outputs: PDF and Excel for April and July 2026.
