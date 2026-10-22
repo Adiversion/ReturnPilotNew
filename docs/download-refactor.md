@@ -1,0 +1,103 @@
+# Download safety refactor — staged rollout
+
+## Status
+
+Phase 1 foundation implemented: `engine/download-coordinator.js` and tests against
+that exact module. **Not imported by background.js or connected to live downloads.**
+Existing GST engines, permissions, DNR rules, filenames, and licensing are unchanged.
+This phase does not fix production portal races by itself.
+
+Run `npm run test:coordinator`. The master test pipeline also runs these tests.
+No dependencies or GST credentials are required for this suite.
+
+## Current production boundary map
+
+- popup/popup.js selects actions and sends return-specific messages.
+- background.js dispatches GSTR-1, 1A, 2B PDF/Excel, 3B and 9 native handlers.
+- engine/ modules orchestrate MAIN-world scripts and portal context.
+- content/ scripts initialize portal state and observe/capture native output.
+- Background DownloadRegistry/onDeterminingFilename handle download naming.
+- Some engines have independent per-tab queues; these are not one shared lock.
+- Generated-file API downloads and local report builders are separate paths.
+
+## Coordinator contract
+
+A future singleton in the service worker will serialize portal-mutating adapters
+across returns, formats and tabs sharing a GST session. Do not instantiate one
+coordinator per engine, tab, or popup; that would recreate the collision problem.
+
+Each job snapshots scalar identity: operation ID, session generation, tab ID,
+GSTIN, return type, period and format. Extra input fields are discarded.
+Required identity fields must already be resolved before enqueueing. Validation
+here ensures presence, not that a taxpayer identity is authoritative.
+
+Adapters implement:
+
+1. `prepare(scope)`: acquire/initialize a context and return its resource handle.
+2. `waitUntilReady(scope, resource)`: resolve only after return-specific data and
+   period checks. A visible button or arbitrary delay is not sufficient.
+3. `execute(scope, resource)`: resolve only after safe file handoff. Invoking a
+   portal function alone is not proof. This is NOT browser download completion.
+4. `cleanup(scope, resource)`: remove owned listeners/hooks/frames as appropriate
+   and quiesce work. Called even after partial prepare failure (resource can be
+   undefined); the adapter must retain enough ownership information to clean up.
+
+`scope` includes the frozen job, AbortSignal and `assertCurrent()`. Adapters must
+check cancellation before side effects and validate operation ID, source window,
+origin and available taxpayer/period metadata when accepting asynchronous results.
+The coordinator cannot inspect those portal-specific facts itself.
+
+## Cancellation and failure safety
+
+- Session invalidation aborts all old-generation work; late results are rejected.
+- Queued cancellation is cooperative: its completion rejects when it reaches the
+  lane, without starting its adapter.
+- Running cancellation does not immediately release the lock. Cleanup must finish
+  before another job starts. Aborting a promise does not stop portal JavaScript.
+- There is deliberately no Promise.race timeout that releases the lane while old
+  work can continue. Adapter timeouts must also ensure owned work is quiescent.
+- If cleanup fails, this coordinator blocks subsequent execution. Recovery needs
+  verified teardown of portal contexts before replacing the instance; merely
+  resetting a boolean or reloading the worker is not a safe recovery procedure.
+- Observer failures do not affect scheduling. State events include taxpayer
+  identity: keep diagnostics local, redact exported logs, and never add tokens.
+- HANDOFF_CONFIRMED means the adapter handoff and cleanup succeeded. It must never
+  be rendered as a completed browser download without download-event evidence.
+
+## Before connecting the first production adapter
+
+Use GSTR-2B PDF/Excel as the first candidate because both mutate the same portal
+integration. Do not route callbacks through the coordinator without refactoring
+context ownership/readiness: legacy success callbacks have different meanings.
+
+- [ ] Resolve and verify taxpayer/tab identity at submission.
+- [ ] Add per-operation message IDs and verify event.source and event.origin.
+- [ ] Implement data readiness checks for requested period, including nil returns.
+- [ ] Define safe native-download handoff and register naming metadata beforehand.
+- [ ] Ensure cleanup does not destroy an in-progress native download.
+- [ ] Connect all relevant account-switch/logout paths to session invalidation.
+- [ ] Address service-worker termination: in-memory locks are not durable, and old
+      portal frames may survive. Detect/reconcile existing contexts on startup;
+      never blindly replay file-generation/download jobs.
+- [ ] Account for existing caller timeouts: queued work can outlive a popup timeout.
+      Use job IDs with progress/status retrieval and explicit cancellation rather
+      than relying solely on one long-lived response callback.
+- [ ] Route competing legacy engines through the same ownership boundary before
+      claiming cross-engine serialization is enforced in production.
+- [ ] Verify behavior on the live portal with an authorized session.
+
+## Subsequent phases
+
+1. Migrate portal adapters one at a time with readiness/cancellation tests.
+2. Correlate browser download started/completed/interrupted events with job IDs.
+3. Extract session, API, polling and UI services from oversized controllers.
+4. Deduplicate test-lab copies where feasible; exercise production modules.
+5. Relax concurrency or enable frame reuse only after isolation tests and live
+   portal evidence establish safety. Keep API-read scheduling separate.
+
+## Verification limits
+
+Unit tests cover scheduling, immutable identity, readiness gating, stale-result
+rejection, cancellation, cleanup and lifecycle reporting using controlled adapters.
+They do not prove GST readiness selectors, actual file contents, browser-download
+completion, browser lifecycle recovery, or cross-frame storage isolation.

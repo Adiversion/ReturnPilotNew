@@ -2,6 +2,30 @@
 
 This document contains the complete technical blueprint for **ReturnPilot** (v4.2), including build instructions, architectural patterns, and decision frameworks for extending or upgrading GST Portal downloaders.
 
+## Active refactor handoff (2026-10-22)
+
+**Read [docs/download-refactor.md](docs/download-refactor.md) before continuing the download-engine refactor.**
+
+- Phase 1 implemented: immutable jobs, shared scheduling, readiness lifecycle,
+  session invalidation and cleanup safety in `engine/download-coordinator.js`.
+- **Not connected to live engines yet.** Existing downloads are unchanged; do not
+  claim production cross-operation contamination has been fixed.
+- Verified: 11 coordinator tests, 16 existing architecture/integrity checks,
+  and 12 repository static compliance checks. Live GST downloads and the full
+  build/browser pipeline have not been verified in this environment.
+- Next: harden GSTR-2B frame/message ownership, then implement verified readiness,
+  safe handoff and cleanup before connecting the coordinator. Account for worker
+  restarts, account switches, and caller timeouts as documented in the handoff.
+- Commands: `npm run test:coordinator`, `node tests/run-e2e.js`,
+  `node scripts/verify-webstore-compliance.js`.
+- Workflow requested by owner: after each successful tested milestone, update
+  handoff documentation, commit, and push to `arena/e6eb8dc6-returnpilotnew`.
+  Never switch branches. Record verification limitations rather than assuming
+  static tests prove live portal behavior.
+
+The architecture guide below includes historical descriptions and local paths;
+current executable code and the handoff above take precedence where they differ.
+
 ---
 
 ## 1. Environment & Build Instructions

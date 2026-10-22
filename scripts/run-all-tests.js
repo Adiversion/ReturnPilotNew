@@ -35,6 +35,12 @@ async function runMasterTestPipeline() {
   const startTime = Date.now();
 
   try {
+    // Safety foundation tests exercise the production coordinator, without GST access.
+    child_process.execFileSync(process.execPath, ['--test', 'tests/download-coordinator.test.cjs'], {
+      cwd: rootDir,
+      stdio: 'inherit'
+    });
+
     // ── TIER 1: Pre-Build Chrome Web Store Compliance Quality Gate ──
     console.log(`\n${ANSI.bold}📌 [TIER 1/5] Running CWS Policy & Compliance Quality Gate...${ANSI.reset}`);
     const { runComplianceChecks } = require('./verify-webstore-compliance.js');
