@@ -248,3 +248,13 @@ Verification: 78 focused tests (27 output), 16 architecture/integrity checks and
 wrong/duplicate months, duplicate taxpayers, matching extensionless names for both
 formats and pre-job URL isolation. Syntax/diff checks passed. No full build or
 live extension regression was run; version remains 4.2.5.
+
+## June Excel upload follow-up
+
+See [june-excel-recording-review.md](june-excel-recording-review.md) for the four
+files uploaded in b94b6ae. Blob/saveAs/object-URL evidence is present, but no actual
+workbook or financial response payload is captured. Source bodies repeat earlier
+findings; live service ownership remains unavailable. Two JSON files contain an
+apparently unredacted authentication header. No production changes were justified
+by this review. Ten evidence assertions and four source equality checks passed;
+runtime tests were not rerun for this documentation-only milestone.

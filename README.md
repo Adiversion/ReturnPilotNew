@@ -68,6 +68,11 @@ current executable code and the handoff above take precedence where they differ.
 
 ---
 
+**New June Excel upload reviewed:** [findings and privacy warning](docs/june-excel-recording-review.md).
+The recording captures a 61,951-byte XLSX output path, but no workbook contents or
+financial API bodies. Both new JSON recordings contain an apparently unredacted
+authentication response header; sanitize before further sharing.
+
 ## Focused user-run diagnostic
 
 Use [the safe recorder guide](docs/safe-recorder-guide.md) with
