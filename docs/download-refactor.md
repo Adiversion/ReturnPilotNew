@@ -4,8 +4,28 @@
 
 Phase 1 foundation implemented: `engine/download-coordinator.js` and tests against
 that exact module. **Not imported by background.js or connected to live downloads.**
-Existing GST engines, permissions, DNR rules, filenames, and licensing are unchanged.
-This phase does not fix production portal races by itself.
+The coordinator foundation alone does not fix production portal races.
+
+Phase 2a implemented in the production GSTR-2B engine:
+- Extracted the serialized MAIN-world runner to `engine/gstr2b-frame-runner.js`.
+- Parent accepts messages only from its own iframe and the exact GST-2B origin.
+- Results require an exact unique request ID; successful results must match
+  requested period, GSTIN and format. Missing IDs no longer pass.
+- Frame metadata includes operation ID, format and creating-parent origin.
+- Inject script only accepts its owning parent's matching start message once.
+- Runner clears timers/listeners on settlement and cleans up append failures.
+- Nine tests exercise the actual runner and inject script with controlled frames.
+
+This changes the live message boundary, NOT the portal readiness or handoff
+semantics. Existing hook dispatch notifications can occur before the native
+browser download is safely underway. Immediate teardown on result remains legacy
+behavior and requires follow-up; do not connect this to the coordinator and assume
+its safe-handoff contract is met. Returned metadata is correlation evidence, not
+proof of document contents. No permissions, DNR rules or licensing changes.
+
+Run `npm run test:gstr2b-frame` as well as coordinator tests. Live portal testing
+has not been performed. Test-lab copies are intentionally not migrated; they are
+not the production entry point.
 
 Run `npm run test:coordinator`. The master test pipeline also runs these tests.
 No dependencies or GST credentials are required for this suite.
@@ -71,7 +91,7 @@ integration. Do not route callbacks through the coordinator without refactoring
 context ownership/readiness: legacy success callbacks have different meanings.
 
 - [ ] Resolve and verify taxpayer/tab identity at submission.
-- [ ] Add per-operation message IDs and verify event.source and event.origin.
+- [x] Add per-operation message IDs and verify event.source and event.origin.
 - [ ] Implement data readiness checks for requested period, including nil returns.
 - [ ] Define safe native-download handoff and register naming metadata beforehand.
 - [ ] Ensure cleanup does not destroy an in-progress native download.

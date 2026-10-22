@@ -8,16 +8,20 @@ This document contains the complete technical blueprint for **ReturnPilot** (v4.
 
 - Phase 1 implemented: immutable jobs, shared scheduling, readiness lifecycle,
   session invalidation and cleanup safety in `engine/download-coordinator.js`.
-- **Not connected to live engines yet.** Existing downloads are unchanged; do not
-  claim production cross-operation contamination has been fixed.
-- Verified: 11 coordinator tests, 16 existing architecture/integrity checks,
-  and 12 repository static compliance checks. Live GST downloads and the full
-  build/browser pipeline have not been verified in this environment.
-- Next: harden GSTR-2B frame/message ownership, then implement verified readiness,
-  safe handoff and cleanup before connecting the coordinator. Account for worker
-  restarts, account switches, and caller timeouts as documented in the handoff.
-- Commands: `npm run test:coordinator`, `node tests/run-e2e.js`,
-  `node scripts/verify-webstore-compliance.js`.
+- The coordinator is **not connected to live engines yet**. Do not claim
+  production cross-engine serialization or data readiness has been fixed.
+- Phase 2a implemented in the production GSTR-2B path: extracted frame runner,
+  exact source-window/origin checks, unique request IDs, matching result metadata,
+  single-use parent-owned start messages, and timer/listener cleanup.
+- Verified: 11 coordinator tests, 9 GSTR-2B frame/inject tests, 16 existing
+  architecture/integrity checks, and 12 repository static compliance checks.
+  Live GST downloads and the full build/browser pipeline have not been verified.
+- Next: implement GSTR-2B data readiness, safe download handoff and context cleanup
+  before connecting the coordinator. Current frame teardown still follows the
+  legacy dispatch result; this is not proof of browser download completion.
+  Address worker restarts, account switches and caller timeouts per the handoff.
+- Commands: `npm run test:coordinator`, `npm run test:gstr2b-frame`,
+  `node tests/run-e2e.js`, `node scripts/verify-webstore-compliance.js`.
 - Workflow requested by owner: after each successful tested milestone, update
   handoff documentation, commit, and push to `arena/e6eb8dc6-returnpilotnew`.
   Never switch branches. Record verification limitations rather than assuming

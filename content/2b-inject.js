@@ -15,12 +15,15 @@
   let activeGstin = '';
   let activeFinYear = '';
   let activeCaptureType = null;
+  let frameJob = null;
+  let captureStarted = false;
 
   // Initialize immediately from window.name metadata payload if present
   try {
     const nameMatch = (window.name || '').match(/__gst2b_(\d+)__meta=(.+)$/);
     if (nameMatch) {
       const meta = JSON.parse(decodeURIComponent(nameMatch[2]));
+      frameJob = meta;
       activePeriod = meta.rtn_prd || meta.period || '';
       activeGstin = meta.gstin || '';
       activeFinYear = meta.finyr || (activePeriod ? disyearOf(activePeriod) : '');
@@ -587,6 +590,13 @@
   window.addEventListener('message', (event) => {
     const d = event.data;
     if (!d || d.__gst2b !== 'INJECT_START') return;
+    // Fresh operation-owned frame: only its creating parent may start it, once.
+    if (!frameJob || window === window.parent || event.source !== window.parent ||
+        event.origin !== frameJob.parentOrigin || !frameJob.requestId ||
+        d.requestId !== frameJob.requestId || d.period !== frameJob.period ||
+        d.captureType !== frameJob.captureType || d.meta?.gstin !== frameJob.gstin ||
+        captureStarted) return;
+    captureStarted = true;
     runCapture(d.requestId, d.period, (d.captureType || 'PDF').toUpperCase(), d.meta || { gstin: d.gstin });
   });
 

@@ -10,6 +10,7 @@ function disyearOf(p) {
 }
 
 import { buildFolderDownloadPath } from './engine.js';
+import { runGstr2bFrame } from './gstr2b-frame-runner.js';
 
 function buildExcelFilename(period, gstin) {
     const d = new Date();
@@ -59,97 +60,7 @@ async function executeGstr2bCapture(tabId, period, gstin, captureType, timeoutMs
         target: { tabId },
         world: 'MAIN',
         args: [period, gstin, finyr, captureType, timeoutMs],
-        func: async (period, gstin, finyr, captureType, timeoutMs) => {
-            return new Promise((resolve) => {
-                let isResolved = false;
-                let hasSentStart = false;
-
-                // Extract user metadata from top page localStorage
-                let lgnm = '';
-                let tradeName = '';
-                let uPref = 'M';
-                let effectiveGstin = gstin;
-                try {
-                    lgnm = localStorage.getItem('lglname') || localStorage.getItem('lgnm') || '';
-                    tradeName = localStorage.getItem('trdnm') || localStorage.getItem('tradeName') || '';
-                    uPref = localStorage.getItem('uPref') || 'M';
-                    const udStr = localStorage.getItem('userdetails');
-                    if (udStr) {
-                        const ud = JSON.parse(udStr);
-                        lgnm = lgnm || ud.lgnm || ud.bname || ud.tradeName || '';
-                        tradeName = tradeName || ud.trdnm || ud.tradeName || '';
-                        if (!effectiveGstin) effectiveGstin = ud.gstin || '';
-                    }
-                } catch (_) {}
-
-                const meta = {
-                    rtn_prd: period,
-                    period,
-                    gstin: effectiveGstin || gstin,
-                    finyr,
-                    lgnm,
-                    tradeName,
-                    uPref
-                };
-
-                const metaPayload = encodeURIComponent(JSON.stringify(meta));
-                const iframeName = `__gst2b_${period}__meta=${metaPayload}`;
-                const requestId = `req_${Date.now()}_${captureType}`;
-
-                const iframe = document.createElement('iframe');
-                iframe.name = iframeName;
-                iframe.src = 'https://gstr2b.gst.gov.in/gstr2b/auth/gstr2b/summary';
-                iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1280px;height:900px;opacity:0;border:0;pointer-events:none;z-index:-1;visibility:hidden;';
-
-                const onMsg = (event) => {
-                    const d = event.data;
-                    if (!d || typeof d !== 'object' || isResolved) return;
-
-                    if (d.__gst2b === 'INJECT_READY') {
-                        if (hasSentStart) return;
-                        hasSentStart = true;
-
-                        if (!isResolved) {
-                            try {
-                                iframe.contentWindow.postMessage({
-                                    __gst2b: 'INJECT_START',
-                                    requestId,
-                                    period,
-                                    captureType,
-                                    meta
-                                }, '*');
-                            } catch (_) {}
-                        }
-                    }
-
-                    if (d.__gst2b === 'INJECT_RESULT' && (d.requestId === requestId || !d.requestId)) {
-                        isResolved = true;
-                        window.removeEventListener('message', onMsg);
-
-                        // Clean up this specific iframe immediately
-                        try { iframe.remove(); } catch (_) {}
-
-                        if (d && typeof d === 'object' && !d.gstin && effectiveGstin) {
-                            d.gstin = effectiveGstin;
-                        }
-                        resolve(d);
-                    }
-                };
-
-                window.addEventListener('message', onMsg);
-                document.body.appendChild(iframe);
-
-                // Timeout failsafe
-                setTimeout(() => {
-                    if (!isResolved) {
-                        isResolved = true;
-                        window.removeEventListener('message', onMsg);
-                        try { iframe.remove(); } catch (_) {}
-                        resolve({ success: false, error: `${captureType} capture timeout (${timeoutMs / 1000}s)` });
-                    }
-                }, timeoutMs);
-            });
-        }
+        func: runGstr2bFrame
     });
 
     return (execResults && execResults[0] && execResults[0].result) || { success: false, error: 'Execution failed' };
