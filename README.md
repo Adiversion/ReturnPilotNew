@@ -6,6 +6,16 @@ This document contains the complete technical blueprint for **ReturnPilot** (v4.
 
 **Read [docs/download-refactor.md](docs/download-refactor.md) before continuing the download-engine refactor.**
 
+**New portal evidence:** see [docs/portal-recording-analysis.md](docs/portal-recording-analysis.md)
+for the reviewed `2b download/` and `3B Download/` uploads. Raw captured functions
+show 2B compiles from service-cached data, while 3B's dashboard entry method loads
+API data. Generated architecture summaries contain inaccuracies; do not follow
+them blindly. The 2B response bodies needed for data-readiness verification are
+missing. The 3B HAR includes an unredacted authentication header: sanitize evidence
+and address session/history exposure before sharing it further. No raw recordings
+are used as test fixtures.
+
+
 - Phase 1 implemented: immutable jobs, shared scheduling, readiness lifecycle,
   session invalidation and cleanup safety in `engine/download-coordinator.js`.
 - The coordinator is **not connected to live engines yet**. Do not claim

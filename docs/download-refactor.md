@@ -103,6 +103,17 @@ The coordinator cannot inspect those portal-specific facts itself.
 - HANDOFF_CONFIRMED means the adapter handoff and cleanup succeeded. It must never
   be rendered as a completed browser download without download-event evidence.
 
+## Uploaded portal evidence review
+
+Read [portal-recording-analysis.md](portal-recording-analysis.md) before adding
+readiness checks. Source snippets confirm 2B uses `retrieveData()` for both PDF
+and Excel, whereas 3B's `downloadGSTR3Bpdf()` fetches data. The 2B response bodies
+are absent from the uploads; generated summary instructions are partly incorrect.
+The observed output chain supports waiting beyond invocation, but does not prove
+our native-anchor hook or safe frame teardown. A clean browser recording and
+sanitized response schemas are still needed. This evidence review changed docs
+only, not production behavior.
+
 ## Before connecting the first production adapter
 
 Use GSTR-2B PDF/Excel as the first candidate because both mutate the same portal
