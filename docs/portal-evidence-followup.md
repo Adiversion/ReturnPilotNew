@@ -202,3 +202,31 @@ into browser completion or use a timeout as proof of success.
 The owner's suggestion was useful: the later ES5 function-body capture contains
 more than the initial ES2015 excerpts. Future agents should consult both bundles
 and distinguish source availability from observed runtime ownership/values.
+
+## Subsequent user-run safe-recorder reports (v1)
+
+These are summaries of reports pasted in conversation, not agent-run portal tests.
+No raw console payloads or identifiers have been copied into this document.
+
+- 3B PDF: getgenpdf `data.r3b` and sysint `data` identity comparisons matched;
+  PDF headers and filename matched. taxpayble schema revealed `data.bal.gstin`,
+  which v1 did not compare. Definition observation preceded the taxpayble response
+  observation; that alone does not prove missing financial data or callback order.
+- 2B combined PDF/Excel: PDF header identity matched (22 blocks), PDF blob 95,215
+  bytes, Excel blob 61,836 bytes, both anchor filenames matched the requested
+  taxpayer/period. PDF filename format was UNKNOWN, while its blob was PDF.
+  No API responses or workbook identities were observed. A repeated identical
+  report is not an independent sample or another-month result.
+- June 2026 Excel: user confirms download after recorder readiness and reports
+  saving. Export contains zero events, no dropped events and no workbook checks;
+  global ExcelJS was unavailable. Whether intervening navigation occurred is not
+  confirmed. This is a coverage gap, not proof of correctness or failure.
+
+All reports have browserCompletionObserved=false. They do not validate financial
+figures, source-to-workbook correlation, multipart completeness or concurrency.
+
+Recorder v2 adds document capture-phase anchor observation, bounded blob metadata
+correlation, hook ownership/frame coverage, and nested balance identity comparison.
+It cannot observe every private library, detached anchor using cached native
+methods, other frame or server download. DOM capture does not establish final
+cancellation or browser completion. No production validation relies on it.

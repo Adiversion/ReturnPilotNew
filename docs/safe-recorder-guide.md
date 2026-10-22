@@ -90,3 +90,27 @@ The target GSTIN/period remains in the script closure until page reload/collecti
 restoration, original fetch-promise preservation, endpoint allowlisting, redaction,
 PDF non-mutation and workbook comparison-only reporting. These use synthetic data
 and do not prove compatibility on the live GST portal.
+
+## Version 2 coverage additions
+
+Use the current repository script, not an older pasted v1 copy. The export/stop
+commands are unchanged. No need to repeat an empty v1 run until a focused new
+capture is useful.
+
+- Document capture-phase download-anchor clicks supplement method wrappers. This
+  can see connected anchors using cached native methods; detached anchors, other
+  frames and navigation/server downloads may still be invisible.
+- `anchor-dom-click-observed.defaultPreventedAtCapture` is only capture-time state,
+  not final cancellation or successful saving. Multiple observations can describe
+  one click; do not count them as independent files.
+- `observedBlob`, `blobFormat`, and `blobBytes` tie an anchor to metadata of an
+  observed object URL. Filenames and URLs are not exported; missing correlation
+  stays unknown. Metadata is capped, cleared on stop and removed on revocation.
+- Coverage includes TOP/CHILD_OR_UNKNOWN and installed wrapper ownership at export.
+  Library presence alone is not proof its method hook worked. An inactive hook
+  may have been replaced by portal code; stop never overwrites that replacement.
+- `identities.bal` checks `data.bal.gstin` where present. No period is invented
+  when the balance object lacks one.
+
+Eleven synthetic recorder tests now pass, including these additions and XHR reuse.
+V2 has not been tested in a live GST session by the agent or user.

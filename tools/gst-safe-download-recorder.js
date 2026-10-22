@@ -1,4 +1,4 @@
-/* ReturnPilot focused diagnostic v1. Paste into an authorized GST page console.
+/* ReturnPilot focused diagnostic v2. Paste into an authorized GST page console.
  * Observes existing activity only. No network requests, storage/cookie/header reads,
  * financial mutations, button automation, remote code or raw payload exports.
  * Stop restores our wrappers when still owned by this recorder. Reload also resets.
@@ -16,7 +16,8 @@
     console.warn('Cancelled: a valid GSTIN and MMYYYY are required. Nothing installed.'); return;
   }
 
-  const events = [], cleanup = [], workbooks = [];
+  const events = [], cleanup = [], workbooks = [], hookChecks = [];
+  const observedBlobs = new Map();
   const started = performance.now();
   let stopped = false, dropped = 0, pending = 0;
   const MAX_EVENTS = 150;
@@ -39,7 +40,10 @@
     const wrapped = make(original);
     try {
       object[key] = wrapped;
-      if (object[key] === wrapped) cleanup.push(() => { if (object[key] === wrapped) object[key] = original; });
+      if (object[key] === wrapped) {
+        hookChecks.push({ key, active: () => object[key] === wrapped });
+        cleanup.push(() => { if (object[key] === wrapped) object[key] = original; });
+      } else record('hook-unavailable');
     } catch (_) { record('hook-unavailable'); }
   }
   function endpoint(raw) {
@@ -75,7 +79,7 @@
       const value = typeof body === 'string' ? JSON.parse(body) : body;
       if (!value || typeof value !== 'object') { record('api-unparsed', info); return; }
       const identities = {};
-      for (const [key, item] of [['root', value], ['data', value.data], ['r3b', value.data?.r3b]]) identities[key] = identity(item);
+      for (const [key, item] of [['root', value], ['data', value.data], ['r3b', value.data?.r3b], ['bal', value.data?.bal]]) identities[key] = identity(item);
       record('api-response', { ...info, httpStatus: status, schema: schema(value), identities,
         businessSuccess: value.status === 1 || value.status === '1',
         errorPresent: !!(value.error || value.status_cd === '0'),
@@ -133,20 +137,54 @@
   }
   patch(URL, 'createObjectURL', original => function (blob) {
     const result = original.apply(this, arguments);
-    if (blob instanceof Blob) record('blob-url-created', { bytes: blob.size, format: mime(blob) });
+    if (!stopped && blob instanceof Blob) {
+      const detail = { bytes: blob.size, format: mime(blob) };
+      // Retain metadata only, never blob bytes. Bound memory even if events overflow.
+      if (observedBlobs.size >= MAX_EVENTS) observedBlobs.delete(observedBlobs.keys().next().value);
+      observedBlobs.set(result, detail);
+      record('blob-url-created', detail);
+    }
     return result; // Never record blob URLs themselves.
   });
+  patch(URL, 'revokeObjectURL', original => function (url) {
+    observedBlobs.delete(url);
+    return original.apply(this, arguments);
+  });
+  function anchorDetail(anchor) {
+    const blob = observedBlobs.get(anchor.href);
+    return { ...matchesFilename(anchor.download),
+      observedBlob: !!blob, blobFormat: blob?.format || null, blobBytes: blob?.bytes ?? null };
+  }
   patch(HTMLAnchorElement.prototype, 'click', original => function () {
-    if (this.download || String(this.href).startsWith('blob:')) record('anchor-click-called', matchesFilename(this.download));
+    if (this.download || String(this.href).startsWith('blob:')) record('anchor-click-called', anchorDetail(this));
     return original.apply(this, arguments);
   });
   patch(HTMLAnchorElement.prototype, 'dispatchEvent', original => function (event) {
     const result = original.apply(this, arguments);
     if (event?.type === 'click' && (this.download || String(this.href).startsWith('blob:'))) {
-      record('anchor-click-dispatched', { ...matchesFilename(this.download), cancelled: result === false || event.defaultPrevented });
+      record('anchor-click-dispatched', { ...anchorDetail(this), cancelled: result === false || event.defaultPrevented });
     }
     return result;
   });
+
+  // A connected anchor can use a previously captured native click/dispatch method.
+  // Capture observes that route without replacing handlers or preventing default.
+  // This is an observation at capture time, NOT a final cancellation/save verdict.
+  let domClickObserverInstalled = false;
+  if (typeof document.addEventListener === 'function') {
+    const onClick = event => {
+      try {
+        const path = typeof event.composedPath === 'function' ? event.composedPath() : [event.target];
+        const anchor = path.find(node => node instanceof HTMLAnchorElement);
+        if (!anchor || !(anchor.download || String(anchor.href).startsWith('blob:'))) return;
+        record('anchor-dom-click-observed', { ...anchorDetail(anchor),
+          defaultPreventedAtCapture: !!event.defaultPrevented });
+      } catch (_) { /* Never interfere with portal events. */ }
+    };
+    document.addEventListener('click', onClick, true);
+    domClickObserverInstalled = true;
+    cleanup.push(() => { document.removeEventListener('click', onClick, true); domClickObserverInstalled = false; });
+  }
 
   function cellText(value) {
     if (typeof value === 'string' || typeof value === 'number') return String(value).trim();
@@ -213,6 +251,7 @@
     stopped = true;
     cleanup.reverse().forEach(fn => { try { fn(); } catch (_) {} });
     workbooks.length = 0;
+    observedBlobs.clear();
     console.info('ReturnPilot diagnostic stopped. Reload the page before another clean recording.');
   }
   function exportReport() {
@@ -223,12 +262,16 @@
       } catch (_) { return { readMePresent: false, inspectionFailed: true }; }
     });
     const report = {
-      recorder: 'ReturnPilot safe download diagnostic v1',
+      recorder: 'ReturnPilot safe download diagnostic v2',
       portal: location.hostname === 'gstr2b.gst.gov.in' ? 'GSTR2B' : 'GST_OTHER',
       userReportsFileSaved: confirm('Did the expected PDF/Excel finish saving in the browser? Cancel means no/not sure.'),
       browserCompletionObserved: false,
       pendingFetchResponseReads: pending, droppedEvents: dropped,
-      coverage: { pdfLibraryObserved: !!globalThis.pdfMake, globalExcelLibraryAvailable: !!globalThis.ExcelJS,
+      coverage: {
+        frameContext: globalThis.top === globalThis ? 'TOP' : 'CHILD_OR_UNKNOWN',
+        domClickObserverInstalled,
+        hooks: hookChecks.map(hook => ({ method: hook.key, active: hook.active() })),
+        pdfLibraryObserved: !!globalThis.pdfMake, globalExcelLibraryAvailable: !!globalThis.ExcelJS,
         note: 'Webpack-private services/workbooks, requests before installation, iframe activity and browser DownloadItem states may not be visible.' },
       workbookChecks, events: events.slice()
     };

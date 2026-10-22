@@ -9,7 +9,7 @@ const GSTIN = '22AAAAA0000A1Z5';
 const drain = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
 
 function harness(hostname = 'gstr2b.gst.gov.in') {
-  const blobs = [], timers = new Set();
+  const blobs = [], timers = new Set(), domListeners = new Map();
   let requests = 0, fileClicks = 0;
   const secret = 'SECRET_AUTH_TOKEN_DO_NOT_EXPORT';
   class XHR {
@@ -38,12 +38,14 @@ function harness(hostname = 'gstr2b.gst.gov.in') {
     performance: { now: () => 10 }, console: { info() {}, warn() {} },
     fetch: nativeFetch, XMLHttpRequest: XHR, URL: LocalURL, HTMLAnchorElement: Anchor, Blob,
     pdfMake: { createPdf: () => ({ download() {} }) }, ExcelJS: { Workbook },
-    document: { createElement: () => new Anchor(), body: { appendChild() {} } },
+    document: { addEventListener: (type, fn) => domListeners.set(type, fn),
+      removeEventListener: (type, fn) => { if (domListeners.get(type) === fn) domListeners.delete(type); }, createElement: () => new Anchor(), body: { appendChild() {} } },
     setInterval: fn => { timers.add(fn); return fn; }, clearInterval: fn => timers.delete(fn),
     setTimeout: () => 1
   });
+  vm.runInContext('globalThis.top = globalThis;', ctx);
   vm.runInContext(source, ctx);
-  return { ctx, nativeFetch, nativeOpen, XHR, Workbook, promise, secret, requests: () => requests, fileClicks: () => fileClicks,
+  return { domListeners, Anchor, ctx, nativeFetch, nativeOpen, XHR, Workbook, promise, secret, requests: () => requests, fileClicks: () => fileClicks,
     async exportReport() { ctx.RP_SAFE_TRACE.export(); return JSON.parse(await blobs.at(-1).text()); }, timers };
 }
 
@@ -115,4 +117,69 @@ test('PDF observation leaves the document unchanged and exports only identity co
   assert.equal(event.identity.taxpayerMatches, true);
   assert.equal(event.identity.monthMatches, true);
   assert.ok(!JSON.stringify(report).includes('PRIVATE_'));
+});
+
+test('nested taxpayble balance identity is compared without inventing a period', async () => {
+  const h = harness(); const xhr = new h.XHR();
+  xhr.open('GET', '/returns/auth/api/gstr3b/taxpayble?rtn_prd=042026');
+  xhr.finish({ status: 1, data: { bal: { gstin: GSTIN, amount: 123456 } } });
+  const report = await h.exportReport();
+  assert.equal(report.events[0].identities.bal.taxpayerMatches, true);
+  assert.equal(report.events[0].identities.bal.periodMatches, null);
+  assert.ok(!JSON.stringify(report).includes(GSTIN));
+  assert.ok(!JSON.stringify(report).includes('123456'));
+});
+
+test('DOM capture observes bypassed method hooks and correlates blob metadata without changing the click', async () => {
+  const h = harness(); const anchor = new h.Anchor();
+  anchor.href = h.ctx.URL.createObjectURL(new Blob(['PDF'], { type: 'application/pdf' }));
+  anchor.download = `GSTR2B_${GSTIN}_042026`; // No extension: do not guess from name.
+  const event = { composedPath: () => [{}, anchor], defaultPrevented: false };
+  h.domListeners.get('click')(event);
+  assert.equal(event.defaultPrevented, false);
+  assert.equal(h.fileClicks(), 0);
+  const report = await h.exportReport();
+  const observed = report.events.find(e => e.kind === 'anchor-dom-click-observed');
+  assert.equal(observed.format, 'UNKNOWN');
+  assert.equal(observed.blobFormat, 'PDF');
+  assert.equal(observed.blobBytes, 3);
+  assert.equal(observed.taxpayerMatches, true);
+  assert.equal(observed.defaultPreventedAtCapture, false);
+  assert.equal(observed.cancelled, undefined);
+  assert.equal(report.coverage.frameContext, 'TOP');
+  assert.equal(report.coverage.domClickObserverInstalled, true);
+  assert.equal(h.domListeners.size, 0);
+  for (const value of [GSTIN, '042026', 'blob:never-export-this']) assert.ok(!JSON.stringify(report).includes(value));
+});
+
+test('reports hook replacement and does not overwrite a later portal wrapper on stop', async () => {
+  const h = harness(); const replacement = () => {};
+  h.ctx.pdfMake.createPdf = replacement;
+  const report = await h.exportReport();
+  assert.equal(report.coverage.hooks.find(hook => hook.method === 'createPdf').active, false);
+  assert.equal(h.ctx.pdfMake.createPdf, replacement);
+  assert.equal(report.events.length, 0);
+});
+
+test('ordinary DOM navigation is ignored; revoked blob metadata is discarded', async () => {
+  const h = harness(); const anchor = new h.Anchor();
+  anchor.href = 'https://gst.gov.in/private-name?token=SECRET';
+  h.domListeners.get('click')({ target: anchor });
+  const url = h.ctx.URL.createObjectURL(new Blob(['X'], { type: 'application/vnd.ms-excel' }));
+  h.ctx.URL.revokeObjectURL(url);
+  anchor.href = url; anchor.download = 'private.xlsx';
+  h.domListeners.get('click')({ target: anchor, defaultPrevented: true });
+  const report = await h.exportReport();
+  assert.equal(report.events.length, 2);
+  assert.equal(report.events[1].observedBlob, false);
+  assert.equal(report.events[1].defaultPreventedAtCapture, true);
+  for (const value of ['private.xlsx', 'private-name', 'SECRET']) assert.ok(!JSON.stringify(report).includes(value));
+});
+
+test('XHR reuse cannot attach an old allowlisted identity to an unrelated response', async () => {
+  const h = harness(); const xhr = new h.XHR();
+  xhr.open('GET', '/gstr2b/auth/api/gstr2b/getdata?rtnprd=042026');
+  xhr.open('GET', '/unrelated');
+  xhr.finish({ status: 1, data: { gstin: GSTIN } });
+  assert.equal((await h.exportReport()).events.length, 0);
 });

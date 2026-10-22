@@ -215,3 +215,14 @@ access are fabricated. Webpack-private workbook visibility remains a limitation;
 page-side observations are not browser download acknowledgement. Six VM privacy/
 behavior tests pass, bringing focused tests to 62; no new live GST claim is made.
 This tool is excluded from production packaging (tools/ is not an active directory).
+
+### Recorder v2 / user evidence follow-up
+
+User-run v1 2B PDF/Excel output matched filename identities, but June Excel yielded
+no events despite user-reported saving after installation. Treat as an unresolved
+coverage gap. See portal-evidence-followup.md for the sanitized evidence summary.
+V2 adds capture-phase anchor observations, bounded metadata correlation, hook
+ownership/frame reporting and data.bal identity comparison. No production runtime
+changes or financial validation claims. Eleven recorder tests / 67 focused tests
+pass; v2 live execution is still unverified. Next production work remains source
+correlation/Excel guards, scheduling/session cancellation and browser acknowledgement.

@@ -70,8 +70,11 @@ Use [the safe recorder guide](docs/safe-recorder-guide.md) with
 [`tools/gst-safe-download-recorder.js`](tools/gst-safe-download-recorder.js) for
 small comparison-only reports from an authorized session. This optional console
 tool makes no new network requests and exports no raw taxpayer/response/header
-values. It is not part of the production extension. Six synthetic recorder tests
-pass (`npm run test:safe-recorder`); live compatibility remains unverified.
+values. It is not part of the production extension. Eleven synthetic recorder tests
+pass (`npm run test:safe-recorder`). V2 adds DOM anchor observation, blob metadata
+correlation, hook/frame coverage and nested 3B balance identity checks. V1 user
+reports include an empty June Excel capture; this is not workbook validation.
+V2 live compatibility remains unverified.
 
 ## 1. Environment & Build Instructions
 
