@@ -203,3 +203,15 @@ Unit tests cover scheduling, immutable identity, readiness gating, stale-result
 rejection, cancellation, cleanup and lifecycle reporting using controlled adapters.
 They do not prove GST readiness selectors, actual file contents, browser-download
 completion, browser lifecycle recovery, or cross-frame storage isolation.
+
+
+## User-run evidence collection tool
+
+`tools/gst-safe-download-recorder.js` and `docs/safe-recorder-guide.md` provide an
+optional diagnostic for the owner to run on an authorized portal. It observes
+allowlisted existing requests and output events, exporting field types and match
+booleans rather than sensitive values. No response schemas or runtime service
+access are fabricated. Webpack-private workbook visibility remains a limitation;
+page-side observations are not browser download acknowledgement. Six VM privacy/
+behavior tests pass, bringing focused tests to 62; no new live GST claim is made.
+This tool is excluded from production packaging (tools/ is not an active directory).

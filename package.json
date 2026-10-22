@@ -6,6 +6,7 @@
   "scripts": {
     "test": "node scripts/run-all-tests.js",
     "test:all": "node scripts/run-all-tests.js",
+    "test:safe-recorder": "node --test tests/safe-recorder.test.cjs",
     "test:pdf-identity": "node --test tests/pdf-identity.test.cjs tests/gstr3b-identity.test.cjs",
     "test:gstr2b-output": "node --test tests/gstr2b-output.test.cjs",
     "test:gstr2b-frame": "node --test tests/gstr2b-frame.test.cjs",

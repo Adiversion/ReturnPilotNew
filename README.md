@@ -64,6 +64,15 @@ current executable code and the handoff above take precedence where they differ.
 
 ---
 
+## Focused user-run diagnostic
+
+Use [the safe recorder guide](docs/safe-recorder-guide.md) with
+[`tools/gst-safe-download-recorder.js`](tools/gst-safe-download-recorder.js) for
+small comparison-only reports from an authorized session. This optional console
+tool makes no new network requests and exports no raw taxpayer/response/header
+values. It is not part of the production extension. Six synthetic recorder tests
+pass (`npm run test:safe-recorder`); live compatibility remains unverified.
+
 ## 1. Environment & Build Instructions
 
 ### Prerequisites

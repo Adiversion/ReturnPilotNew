@@ -36,7 +36,7 @@ async function runMasterTestPipeline() {
 
   try {
     // Safety foundation tests exercise the production coordinator, without GST access.
-    child_process.execFileSync(process.execPath, ['--test', 'tests/download-coordinator.test.cjs', 'tests/gstr2b-frame.test.cjs', 'tests/gstr2b-output.test.cjs', 'tests/pdf-identity.test.cjs', 'tests/gstr3b-identity.test.cjs'], {
+    child_process.execFileSync(process.execPath, ['--test', 'tests/download-coordinator.test.cjs', 'tests/gstr2b-frame.test.cjs', 'tests/gstr2b-output.test.cjs', 'tests/pdf-identity.test.cjs', 'tests/gstr3b-identity.test.cjs', 'tests/safe-recorder.test.cjs'], {
       cwd: rootDir,
       stdio: 'inherit'
     });
