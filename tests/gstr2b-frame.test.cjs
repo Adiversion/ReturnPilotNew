@@ -36,7 +36,7 @@ function harness({ appendFails = false } = {}) {
   const ready = () => emit({ __gst2b: 'INJECT_READY' });
   const result = (overrides = {}) => emit({
     __gst2b: 'INJECT_RESULT', requestId: sent[0]?.data.requestId,
-    success: true, period: '042026', gstin, captureType: 'PDF', ...overrides
+    success: true, period: '042026', gstin, captureType: 'PDF', downloadStage: 'NATIVE_ANCHOR_DISPATCHED', ...overrides
   });
   return { completion, emit, ready, result, sent, timers, listeners, frame, removed: () => removed };
 }
@@ -135,4 +135,12 @@ test('production inject script only starts once for its owning parent and job', 
   assert.equal(captures, 0);
   emit(); emit();
   assert.equal(captures, 1);
+});
+
+
+test('rejects legacy success without native dispatch evidence', async () => {
+  const h = harness(); h.ready(); h.result({ downloadStage: undefined });
+  const result = await h.completion;
+  assert.equal(result.success, false);
+  assert.match(result.error, /missing native dispatch evidence/);
 });

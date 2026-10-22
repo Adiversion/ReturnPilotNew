@@ -38,6 +38,10 @@ export function runGstr2bFrame(period, gstin, finyr, captureType, timeoutMs) {
           finish({ success: false, requestId, error: 'GSTR-2B result identity mismatch' });
           return;
         }
+        if (data.success && data.downloadStage !== 'NATIVE_ANCHOR_DISPATCHED') {
+          finish({ success: false, requestId, error: 'GSTR-2B result missing native dispatch evidence' });
+          return;
+        }
         finish(data);
       }
     }

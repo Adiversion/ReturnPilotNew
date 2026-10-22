@@ -17,6 +17,8 @@
   let activeCaptureType = null;
   let frameJob = null;
   let captureStarted = false;
+  let captureArmed = false;
+  let clearOutputReferences = () => {};
 
   // Initialize immediately from window.name metadata payload if present
   try {
@@ -177,28 +179,7 @@
     window.postMessage({ __gst2b: 'INJECT_RESULT', ...payload }, '*');
   };
 
-  // ── Capture State ──
-  const capture = { blob: null, filename: null, type: null, resolvers: [] };
-
-  function resetCapture() {
-    capture.blob = null;
-    capture.filename = null;
-    capture.type = null;
-    capture.resolvers = [];
-  }
-
-  function resolveCapture(blob, filename, type) {
-    if (!capture.blob && blob) {
-      capture.blob = blob;
-      if (filename) capture.filename = filename;
-      if (type) capture.type = type;
-      capture.resolvers.splice(0).forEach(r => r({ blob: capture.blob, filename: capture.filename, type: capture.type }));
-    } else if (filename && !capture.filename) {
-      capture.filename = filename;
-    }
-  }
-
-  // ── Instant Dispatch Notification (Zero UI lag) ──
+  // ── Observed native anchor dispatch (not browser download completion) ──
   let isDispatched = false;
   let dispatchedPayload = null;
   const dispatchResolvers = [];
@@ -210,6 +191,7 @@
   }
 
   function notifyDispatched(filename, type) {
+    if (!captureArmed || type !== activeCaptureType) return;
     if (!isDispatched) {
       isDispatched = true;
       dispatchedPayload = { filename, type };
@@ -218,15 +200,18 @@
   }
 
   function waitDispatched(ms = 15000) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       if (isDispatched) return resolve(dispatchedPayload);
-      const timer = setTimeout(() => {
-        resolve(dispatchedPayload || { timedOut: true });
-      }, ms);
-      dispatchResolvers.push((val) => {
+      const onDispatch = (val) => {
         clearTimeout(timer);
         resolve(val);
-      });
+      };
+      const timer = setTimeout(() => {
+        const index = dispatchResolvers.indexOf(onDispatch);
+        if (index !== -1) dispatchResolvers.splice(index, 1);
+        reject(new Error('GSTR-2B native download was not observed before timeout'));
+      }, ms);
+      dispatchResolvers.push(onDispatch);
     });
   }
 
@@ -241,14 +226,7 @@
         fixPdfDocDefinition(docDefinition, targetFY);
       }
 
-      const pdfObj = orig.call(this, docDefinition);
-      const origDl = pdfObj.download ? pdfObj.download.bind(pdfObj) : null;
-      pdfObj.download = function (fn) {
-        console.log('[ReturnPilot 2B] Official portal pdfMake download triggered:', fn);
-        notifyDispatched(fn, 'PDF');
-        if (origDl) return origDl(fn);
-      };
-      return pdfObj;
+      return orig.call(this, docDefinition);
     };
 
     window.pdfMake.__hooked2b = true;
@@ -327,84 +305,53 @@
     return true;
   }
 
-  function hookSaveAs() {
-    if (!window.saveAs || window.saveAs.__hooked2b) return false;
-    const origSaveAs = window.saveAs;
-    window.saveAs = function (blob, filename) {
-      console.log('[ReturnPilot 2B] Official portal saveAs download triggered:', filename);
-      notifyDispatched(filename, 'EXCEL');
-      return origSaveAs.apply(this, arguments);
-    };
-    window.saveAs.__hooked2b = true;
-    return true;
-  }
-
   function hookUrlAndAnchor() {
     if (window.URL.__hooked2b) return;
 
     const origCreateObjectURL = window.URL.createObjectURL;
     const blobUrlMap = new Map();
+    clearOutputReferences = () => blobUrlMap.clear();
 
     window.URL.createObjectURL = function (obj) {
       const url = origCreateObjectURL.apply(this, arguments);
-      if (obj instanceof Blob) {
+      if (captureArmed && obj instanceof Blob && obj.size > 0) {
+        // Retain bytes only until settlement. Object URL creation alone is not
+        // evidence that a download was dispatched.
         blobUrlMap.set(url, obj);
-        const isPdf = obj?.type?.includes('pdf');
-        const isExcel = obj?.type?.includes('spreadsheet') || obj?.type?.includes('excel') || obj?.type?.includes('officedocument') || (activeCaptureType === 'EXCEL' && obj.size > 500);
-
-        if (isExcel || (activeCaptureType === 'EXCEL' && !isPdf)) {
-          console.log('[2B Inject] 🎯 Intercepted Excel Blob (size:', obj.size, ')');
-          queueMicrotask(() => {
-            notifyDispatched(buildOfficial2bFilename(activePeriod, activeGstin, 'xlsx'), 'EXCEL');
-            if (!capture.blob) {
-              resolveCapture(obj, buildOfficial2bFilename(activePeriod, activeGstin, 'xlsx'), 'EXCEL');
-            }
-          });
-        } else if (isPdf && activeCaptureType === 'PDF') {
-          queueMicrotask(() => {
-            notifyDispatched(buildOfficial2bFilename(activePeriod, activeGstin, 'pdf'), 'PDF');
-            if (!capture.blob) {
-              resolveCapture(obj, buildOfficial2bFilename(activePeriod, activeGstin, 'pdf'), 'PDF');
-            }
-          });
-        }
       }
       return url;
     };
 
-    // ── Anchor Property & Attribute traps (Captures official filenames) ──
-    if (!HTMLAnchorElement.prototype.__gst2bAttrHooked) {
-      const origSetAttribute = HTMLAnchorElement.prototype.setAttribute;
-      HTMLAnchorElement.prototype.setAttribute = function (name, val) {
-        if (name && name.toLowerCase() === 'download' && val) {
-          capture.filename = val;
-        }
-        return origSetAttribute.apply(this, arguments);
-      };
-
-      const origDlDesc = Object.getOwnPropertyDescriptor(HTMLAnchorElement.prototype, 'download');
-      if (origDlDesc && origDlDesc.set) {
-        Object.defineProperty(HTMLAnchorElement.prototype, 'download', {
-          configurable: true,
-          enumerable: true,
-          get() { return origDlDesc.get.call(this); },
-          set(val) {
-            if (val) capture.filename = val;
-            return origDlDesc.set.call(this, val);
-          }
-        });
-      }
-      HTMLAnchorElement.prototype.__gst2bAttrHooked = true;
+    function observeAnchor(anchor) {
+      if (!captureArmed) return;
+      const blob = blobUrlMap.get(anchor.href || '');
+      if (!blob || !blob.size) return;
+      const filename = anchor.download || anchor.getAttribute('download') || '';
+      const mime = (blob.type || '').toLowerCase();
+      const namedType = /\.pdf$/i.test(filename) ? 'PDF' : /\.xlsx?$/i.test(filename) ? 'EXCEL' : null;
+      const mimeType = mime.includes('pdf') ? 'PDF'
+        : /spreadsheet|excel|officedocument/.test(mime) ? 'EXCEL' : null;
+      // Do not reinterpret HTML/error payloads or mismatched formats as a file.
+      if (mime && !mimeType && !['application/octet-stream', 'application/zip'].includes(mime)) return;
+      if (mimeType && namedType && mimeType !== namedType) return;
+      const type = mimeType || namedType;
+      if (type !== activeCaptureType) return;
+      notifyDispatched(filename || buildOfficial2bFilename(activePeriod, activeGstin, type === 'PDF' ? 'pdf' : 'xlsx'), type);
+      blobUrlMap.clear();
     }
 
     const origAnchorClick = HTMLAnchorElement.prototype.click;
     HTMLAnchorElement.prototype.click = function () {
-      const downloadName = this.download || this.getAttribute('download') || '';
-      const href = this.href || '';
-      if (downloadName || href.startsWith('blob:')) {
-        notifyDispatched(downloadName, activeCaptureType);
-      }
-      return origAnchorClick.apply(this, arguments);
+      const result = origAnchorClick.apply(this, arguments);
+      observeAnchor(this);
+      return result;
+    };
+    // FileSaver commonly dispatches a synthetic MouseEvent rather than .click().
+    const origDispatchEvent = HTMLAnchorElement.prototype.dispatchEvent;
+    HTMLAnchorElement.prototype.dispatchEvent = function (event) {
+      const result = origDispatchEvent.apply(this, arguments);
+      if (event?.type === 'click' && result !== false && !event.defaultPrevented) observeAnchor(this);
+      return result;
     };
 
     window.URL.__hooked2b = true;
@@ -413,7 +360,6 @@
   function installHooks() {
     hookPdfMake();
     hookXlsx();
-    hookSaveAs();
     hookUrlAndAnchor();
     patchAngularScope(disyearOf(activePeriod));
   }
@@ -427,26 +373,6 @@
     }
   }, 50);
 
-  function waitBlob(ms = 60000) {
-    return new Promise((resolve, reject) => {
-      if (capture.blob) return resolve({ blob: capture.blob, filename: capture.filename, type: capture.type });
-      const timer = setTimeout(() => reject(new Error('Blob timeout')), ms);
-      capture.resolvers.push((snap) => {
-        clearTimeout(timer);
-        resolve(snap);
-      });
-    });
-  }
-
-  function blobToDataUrl(blob) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(blob);
-    });
-  }
-
   // ── Dynamic Button Finder with Instant DOM Search & Mutation Trigger ──
   async function waitButton(textPatterns, maxMs = 20000) {
     const patterns = textPatterns.map(p => p.toUpperCase());
@@ -458,7 +384,9 @@
         for (const pat of patterns) {
           if (text.includes(pat)) {
             const style = window.getComputedStyle(el);
-            if (style.display !== 'none' && style.visibility !== 'hidden' && !el.disabled) {
+            const blocked = el.disabled || el.getAttribute?.('aria-disabled') === 'true' || el.getAttribute?.('aria-busy') === 'true';
+            const wrongFormat = activeCaptureType === 'PDF' && text.includes('EXCEL');
+            if (style.display !== 'none' && style.visibility !== 'hidden' && !blocked && !wrongFormat) {
               return el;
             }
           }
@@ -476,6 +404,7 @@
         if (!settled) {
           settled = true;
           observer.disconnect();
+          clearInterval(interval);
           reject(new Error(`Button matching [${textPatterns.join(', ')}] not found`));
         }
       }, maxMs);
@@ -486,6 +415,7 @@
           settled = true;
           clearTimeout(timeout);
           observer.disconnect();
+          clearInterval(interval);
           resolve(match);
         }
       };
@@ -495,7 +425,7 @@
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ['disabled', 'style', 'class']
+        attributeFilter: ['disabled', 'style', 'class', 'aria-disabled', 'aria-busy']
       });
 
       const interval = setInterval(() => {
@@ -512,7 +442,6 @@
     activeFinYear = meta?.finyr || disyearOf(period);
     activeCaptureType = captureType;
     console.log(`[2B Inject] Capture: ${period} ${captureType} (gstin: ${activeGstin || 'UNKNOWN'}, FY: ${activeFinYear})`);
-    resetCapture();
 
     const tStart = performance.now();
     try {
@@ -547,10 +476,11 @@
 
       // Reset dispatch state before click
       resetDispatch();
-      resetCapture();
 
       // Patch scopes again right before click
       patchAngularScope(activeFinYear);
+
+      captureArmed = true;
 
       // Robust Angular & DOM event dispatching
       try { btn.focus(); } catch (_) {}
@@ -558,7 +488,7 @@
       btn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
       btn.click();
 
-      // Instantly await portal dispatch notification with 45s safety ceiling for slow connections
+      // Require a matching blob anchor activation, not a generation-function call.
       const dispatched = await waitDispatched(45000);
       const tEnd = performance.now();
 
@@ -575,6 +505,7 @@
         period,
         captureType,
         officialDownload: true,
+        downloadStage: 'NATIVE_ANCHOR_DISPATCHED',
         metrics: {
           findButtonMs: Math.round(tFound - tStart),
           renderMs: Math.round(tEnd - tFound),
@@ -584,6 +515,11 @@
     } catch (err) {
       console.error('[2B Inject] Error:', err.message);
       sendResult({ requestId, success: false, error: err.message, captureType });
+    } finally {
+      captureArmed = false;
+      clearOutputReferences();
+      clearInterval(hookPoll);
+      resetDispatch();
     }
   }
 

@@ -13,14 +13,20 @@ This document contains the complete technical blueprint for **ReturnPilot** (v4.
 - Phase 2a implemented in the production GSTR-2B path: extracted frame runner,
   exact source-window/origin checks, unique request IDs, matching result metadata,
   single-use parent-owned start messages, and timer/listener cleanup.
-- Verified: 11 coordinator tests, 9 GSTR-2B frame/inject tests, 16 existing
+- Phase 2b implemented: native output observation now requires activation of an
+  owned nonempty blob anchor of the requested format. PDF/saveAs invocation and
+  object URL creation no longer count as dispatch. Timeouts reject rather than
+  falling through to success. PDF selection skips Excel buttons and honors ARIA
+  busy/disabled state. Removed obsolete capture helpers and filename traps.
+- Verified: 11 coordinator tests, 10 GSTR-2B frame/inject tests, 12 output tests, 16 existing
   architecture/integrity checks, and 12 repository static compliance checks.
   Live GST downloads and the full build/browser pipeline have not been verified.
 - Next: implement GSTR-2B data readiness, safe download handoff and context cleanup
-  before connecting the coordinator. Current frame teardown still follows the
-  legacy dispatch result; this is not proof of browser download completion.
+  before connecting the coordinator. Frame teardown now follows observed native
+  anchor activation; this is still not proof of browser download completion.
+  Non-anchor native output paths currently fail closed and require live testing.
   Address worker restarts, account switches and caller timeouts per the handoff.
-- Commands: `npm run test:coordinator`, `npm run test:gstr2b-frame`,
+- Commands: `npm run test:coordinator`, `npm run test:gstr2b-frame`, `npm run test:gstr2b-output`,
   `node tests/run-e2e.js`, `node scripts/verify-webstore-compliance.js`.
 - Workflow requested by owner: after each successful tested milestone, update
   handoff documentation, commit, and push to `arena/e6eb8dc6-returnpilotnew`.

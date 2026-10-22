@@ -14,16 +14,35 @@ Phase 2a implemented in the production GSTR-2B engine:
 - Frame metadata includes operation ID, format and creating-parent origin.
 - Inject script only accepts its owning parent's matching start message once.
 - Runner clears timers/listeners on settlement and cleans up append failures.
-- Nine tests exercise the actual runner and inject script with controlled frames.
+- Ten tests exercise the actual runner and inject script with controlled frames.
 
-This changes the live message boundary, NOT the portal readiness or handoff
-semantics. Existing hook dispatch notifications can occur before the native
-browser download is safely underway. Immediate teardown on result remains legacy
-behavior and requires follow-up; do not connect this to the coordinator and assume
-its safe-handoff contract is met. Returned metadata is correlation evidence, not
-proof of document contents. No permissions, DNR rules or licensing changes.
+Phase 2b implemented in the production inject script:
+- PDF/saveAs invocation and object URL creation no longer settle the operation.
+- Observe native `.click()` or non-cancelled synthetic click dispatch on an anchor
+  whose blob URL was created after arming this job. Require nonempty bytes and
+  matching MIME/extension format; reject known HTML/error MIME and conflicts.
+- Waiting for native output rejects on timeout (previously timeout could become
+  success with a fabricated fallback filename).
+- Results carry `NATIVE_ANCHOR_DISPATCHED`; runner rejects legacy success without
+  it and engine propagates it. This is observation, not browser completion.
+- Button search respects aria-disabled/aria-busy and skips Excel-labelled buttons
+  during PDF requests. This is button eligibility, NOT verified data readiness.
+- Clear pollers, observers, waiter callbacks and blob references at settlement.
+- Remove unused blob-to-data-URL capture helpers and unrelated filename traps.
+- Twelve output tests execute the production inject script using delayed output,
+  timeouts, wrong formats, empty/HTML blobs, synthetic clicks and button states.
 
-Run `npm run test:gstr2b-frame` as well as coordinator tests. Live portal testing
+Remaining limitations: anchor activation can still be blocked by the browser;
+`.click()` does not expose cancellation, and this code does not verify downloaded
+bytes or their period/taxpayer. MIME/extension checks are not file-signature checks.
+Frame removal still follows the native dispatch result, not a browser download
+acknowledgement. Validate this handoff before connecting the coordinator.
+Portal paths using window.open, data URLs, navigation, captured original methods,
+or non-anchor downloads now fail closed instead of claiming success. Confirm the
+live GST FileSaver/pdfMake paths before release. The native save itself is not
+suppressed or replaced. No permissions, DNR rules or licensing changes.
+
+Run `npm run test:gstr2b-frame` and `npm run test:gstr2b-output` as well as coordinator tests. Live portal testing
 has not been performed. Test-lab copies are intentionally not migrated; they are
 not the production entry point.
 

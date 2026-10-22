@@ -92,7 +92,7 @@ export function handleGstr2BExcel(msg, sender, sendResponse, deps) {
 
                 console.log(`[ReturnPilot GSTR-2B] Official portal Excel download initiated for period ${period} (GSTIN: ${effectiveGstin}) -> ${filename}`);
 
-                return sendResponse({ success: true, filename, period, captureType: 'EXCEL', officialDownload: true });
+                return sendResponse({ success: true, filename, period, captureType: 'EXCEL', officialDownload: true, downloadStage: r.downloadStage });
             }
             return sendResponse({ success: false, error: r?.error || 'GSTR-2B Excel capture failed' });
         } catch (e) {
@@ -128,7 +128,7 @@ export function handleGstr2BPortalPdf(msg, sender, sendResponse, deps) {
 
                 console.log(`[ReturnPilot GSTR-2B] Official portal PDF download initiated for period ${period} (GSTIN: ${effectiveGstin}) -> ${filename}`);
 
-                return sendResponse({ success: true, filename, period, captureType: 'PDF', officialDownload: true });
+                return sendResponse({ success: true, filename, period, captureType: 'PDF', officialDownload: true, downloadStage: r.downloadStage });
             }
             return sendResponse({ success: false, error: r?.error || 'GSTR-2B PDF capture failed' });
         } catch (e) {

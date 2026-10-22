@@ -6,6 +6,7 @@
   "scripts": {
     "test": "node scripts/run-all-tests.js",
     "test:all": "node scripts/run-all-tests.js",
+    "test:gstr2b-output": "node --test tests/gstr2b-output.test.cjs",
     "test:gstr2b-frame": "node --test tests/gstr2b-frame.test.cjs",
     "test:coordinator": "node --test tests/download-coordinator.test.cjs",
     "test:smoke": "node tests/smoke-test.js",
