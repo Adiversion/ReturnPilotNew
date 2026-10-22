@@ -226,3 +226,25 @@ ownership/frame reporting and data.bal identity comparison. No production runtim
 changes or financial validation claims. Eleven recorder tests / 67 focused tests
 pass; v2 live execution is still unverified. Next production work remains source
 correlation/Excel guards, scheduling/session cancellation and browser acknowledgement.
+
+## Phase 2d — native filename contradiction containment
+
+Production `content/2b-inject.js` now checks filenames on job-owned blob anchors
+before `.click()` or synthetic click dispatch. Any recognized GSTIN or
+underscore-delimited MMYYYY that differs from the job rejects the operation and
+blocks that activation. Multiple tokens are all checked; one matching token does
+not hide another conflicting one. Error messages do not contain taxpayer values.
+
+Scope: both PDF and Excel; no new permissions or library/service hooks. Generic
+names, missing extensions and matching identities remain supported using existing
+format checks. Pre-job URLs are untouched. These are explicit contradiction
+checks only: unknown filename layouts are not parsed, absent tokens are not proof,
+and matching filenames can still accompany stale financial figures. Actual Excel
+source/workbook verification and multipart handling remain pending. This does not
+add browser download acknowledgement or protect paths bypassing these wrappers.
+
+Verification: 78 focused tests (27 output), 16 architecture/integrity checks and
+12 static compliance checks passed. Eleven added output tests cover wrong GSTIN,
+wrong/duplicate months, duplicate taxpayers, matching extensionless names for both
+formats and pre-job URL isolation. Syntax/diff checks passed. No full build or
+live extension regression was run; version remains 4.2.5.

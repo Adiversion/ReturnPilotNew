@@ -364,6 +364,18 @@
     }
 
     function allowAnchor(anchor) {
+      if (captureArmed && blobUrlMap.has(anchor.href || '')) {
+        const filename = String(anchor.download || anchor.getAttribute('download') || '');
+        // These are contradiction checks, NOT content verification. Generic native
+        // names remain supported; do not manufacture identity from absent tokens.
+        const taxpayers = filename.match(/\d{2}[A-Z]{5}\d{4}[A-Z][A-Z0-9]Z[A-Z0-9]/gi) || [];
+        const periods = [...filename.matchAll(/(?:^|_)((?:0[1-9]|1[0-2])20\d{2})(?=_|\.|$)/g)].map(match => match[1]);
+        if (taxpayers.some(value => value.toUpperCase() !== activeGstin.toUpperCase()) ||
+            periods.some(value => value !== activePeriod)) {
+          rejectOutput(new Error('Download blocked: filename identity conflicts with the requested job'));
+          return false;
+        }
+      }
       if (captureArmed && activeCaptureType === 'PDF' && blobUrlMap.has(anchor.href || '') &&
           (!pdfIdentityVerified || dispatchFailure)) {
         rejectOutput(new Error('PDF download blocked: document identity was not verified'));

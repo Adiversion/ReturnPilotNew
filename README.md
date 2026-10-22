@@ -41,8 +41,12 @@ not establish a callable live service. This review changes documentation only.
   financial year against the job, before 2B metadata correction. Unknown or
   mismatched headers fail closed; 3B fallback capture cannot bypass the check.
   This does NOT validate every amount, Excel contents or eliminate shared-state races.
-- Verified: 56 focused tests (11 coordinator, 10 frame, 16 output, 12 identity/loader,
-  7 production 3B identity integration), 16 architecture checks and 12 static
+- Phase 2d implemented: 2B blocks native download anchors whose filename explicitly
+  names another GSTIN or underscore-delimited MMYYYY. Applies to PDF and Excel
+  before click/dispatch; generic filenames remain supported. This is contradiction
+  containment, not workbook/content identity validation.
+- Verified: 78 focused tests (11 coordinator, 10 frame, 27 output, 12 identity/loader,
+  7 production 3B identity integration, 11 recorder), 16 architecture checks and 12 static
   compliance checks. Offline matching/cross-month checks also passed against all
   four supplied PDF header layouts without copying sensitive data into fixtures.
   Live GST downloads and the full build/browser pipeline have not been verified.

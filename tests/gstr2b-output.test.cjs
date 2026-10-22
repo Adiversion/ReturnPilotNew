@@ -202,3 +202,46 @@ test('PDF fallback without any verified docDefinition cannot bypass the guard', 
   assert.equal(h.nativeClicks(), 0);
   assert.equal(h.results()[0].success, false);
 });
+
+for (const format of ['PDF', 'EXCEL']) {
+  for (const [reason, name] of [
+    ['another taxpayer', 'GSTR2B_27BBBBB0000B1Z5_042026'],
+    ['another month', 'GSTR2B_22AAAAA0000A1Z5_062026'],
+    ['conflicting duplicate months', 'GSTR2B_22AAAAA0000A1Z5_042026_062026'],
+    ['conflicting duplicate taxpayers', 'GSTR2B_22AAAAA0000A1Z5_27BBBBB0000B1Z5_042026']
+  ]) {
+    test(`blocks ${format} filename naming ${reason} before native dispatch`, async () => {
+      const mime = format === 'PDF' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      const extension = format === 'PDF' ? '.pdf' : '.xlsx';
+      const h = harness({ format, click: h => {
+        const anchor = h.anchor(mime, name + extension);
+        if (format === 'PDF') anchor.click();
+        else assert.equal(anchor.dispatchEvent({ type: 'click' }), false);
+      } });
+      h.start(); await drain();
+      assert.equal(h.nativeClicks(), 0);
+      assert.equal(h.results().length, 1);
+      assert.equal(h.results()[0].success, false);
+      assert.match(h.results()[0].error, /filename identity conflicts/);
+      assert.ok(!h.results()[0].error.includes('27BBBBB0000B1Z5'));
+      assert.equal(h.timers.size, 0);
+      assert.equal(h.intervals.size, 0);
+    });
+  }
+  test(`accepts matching ${format} filename identity without requiring an extension`, async () => {
+    const mime = format === 'PDF' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    const h = harness({ format, click: h => h.anchor(mime, 'GSTR2B_22aaaaa0000a1z5_042026').click() });
+    h.start(); await drain();
+    assert.equal(h.nativeClicks(), 1);
+    assert.equal(h.results()[0].success, true);
+  });
+}
+
+test('filename contradiction guard leaves pre-job object URLs alone', async () => {
+  const h = harness({ format: 'EXCEL' });
+  const old = h.anchor('application/vnd.ms-excel', 'GSTR2B_27BBBBB0000B1Z5_062026.xlsx');
+  h.start(); await drain(); old.click(); await drain();
+  assert.equal(h.nativeClicks(), 1);
+  assert.equal(h.results().length, 0);
+  await expectFailure(h);
+});
